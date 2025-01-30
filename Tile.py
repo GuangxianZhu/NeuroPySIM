@@ -1,8 +1,14 @@
-
+import math
 import numpy as np
 
 from constant import *
 from Array import Array
+from AdderTree import AdderTree
+
+def ceil(x):
+    return int(math.ceil(x))
+def log2(x):
+    return math.log(x, 2)
 
 class Tile:
     def __init__(self, stageNum_row, stageNum_col, num_subarray_row, num_subarray_col, subarray_row_size, subarray_col_size,
@@ -21,17 +27,40 @@ class Tile:
         self.tech = tech
         self.gate_params = gate_params
         
+        #
+        self.numBitSubarrayOutput = ceil(log2(subarray_row_size)) \
+            + param.cellBit \
+            + param.synapseBit \
+            + (param.synapseBit - 1)*param.cellBit + 1
+        self.numAdderTree = num_subarray_row * (subarray_col_size/param.synapseBit)
+        
         self.array = Array(numRow=param.numRowSubArray, numCol=param.numColSubArray,
                            param=param, tech=tech, gate_params=gate_params)
+        
+        
+        
+        self.adderTree = AdderTree(numSubcoreRow=stageNum_row, numAdderBit=self.numBitSubarrayOutput,
+                                   numAdderTree=self.numAdderTree, 
+                                   param=param, tech=tech, gate_params=gate_params)
+        
+        
         
     def CalculateArea(self):
         
         self.array.CalculateArea()
         arrayH = self.array.height
         arrayW = self.array.width
-        self.tileH = arrayH * self.num_subarray_row
-        self.tileW = arrayW * self.num_subarray_col
-        self.area = self.tileH * self.tileW
+        self.height = arrayH * self.num_subarray_row
+        self.width = arrayW * self.num_subarray_col
+        
+        self.adderTree.CalculateArea()
+        self.height += self.adderTree.height
+        # self.width += self.adderTree.width # same as array width
+        
+        
+        self.area = self.height * self.width
+        
+        
         
         array_usedArea = self.array.usedArea
         array_emptyArea = self.array.emptyArea
@@ -60,25 +89,36 @@ class Tile:
         #                     self.Latency += self.array.readLatency
         
         self.Latency = 0
-        subarray_input = self.input_container[0][0][0][0]
+        subarray_input = self.input_container[0][0][0][0] #8b
         # subarray_weight = self.container[0][0][0][0]
         # input_col = subarray_input[:, 0]
         # columnResistance = get_column_resistance_np(input_col, subarray_weight)
+        
+        self.input_bitlen = subarray_input.shape[1]
+        self.num_nbit_inputs = self.input_bitlen / self.param.synapseBit # 8b/8
+        
         self.array.CalculateLatency()
-        self.Latency += self.array.readLatency * subarray_input.shape[1]
+        self.Latency += self.array.readLatency * self.input_bitlen
+        
+        # II. peripheral part
+        # skip for now (buffer, relu, etc.)
+        self.adderTree.CalculateLatency(self.num_nbit_inputs, 
+                                        self.num_subarray_row, 0)
+        self.Latency += self.adderTree.readLatency
+        
+        
         self.Latency *= self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
         self.Latency /= speedUp
         
-        
-        # II. peripheral part
-        # skip for now (buffer, addertree, relu, etc.)
         
     
     def CalculatePower(self):
         if self.weight_cpoied==False or self.input_copied==False:
             raise ValueError("cannot cal latency, Weight or input matrix is not copied to the Tile.")
         
-        # self.readDynamicEnergy = 0
+        self.readDynamicEnergy = 0
+        self.leakage = 0
+        calTimes = self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
         # for stagei in range(self.stageNum_row):
         #     for stagej in range(self.stageNum_col):
         #         for i in range(self.num_subarray_row):
@@ -98,10 +138,14 @@ class Tile:
         #                     self.readDynamicEnergy += self.array.readDynamicEnergy
         
         # fast cal
-        self.array.CalculatePower()
-        self.readDynamicEnergy = self.array.readDynamicEnergy * self.stageNum_row \
-            * self.stageNum_col * self.num_subarray_row * self.num_subarray_col \
-            * self.input_container.shape[1]
+        self.array.CalculatePower() # for 1 bit/each bit
+        self.readDynamicEnergy += self.array.readDynamicEnergy * calTimes * self.input_bitlen
+        self.leakage = self.array.leakage * calTimes
+        
+        self.adderTree.CalculatePower(self.num_nbit_inputs, self.num_subarray_row) # for n bits
+        self.readDynamicEnergy += self.adderTree.readDynamicEnergy * calTimes
+        self.leakage += self.adderTree.leakage * calTimes
+        
                         
         
 
