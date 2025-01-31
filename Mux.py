@@ -32,11 +32,11 @@ class Mux:
         self.height = self.hTg
         self.area = self.height * self.width
         
-    def CalculateLatency(self, _capLoad, _numRead):
+    def CalculateLatency(self, numRead):
         capLoad = 1e20
         tr = self.resTg * (self.capTgDrain + 0.5*self.capTgGateN + 0.5*self.capTgGateP + capLoad)
         self.readLatency = 2.3 * tr;	# 2.3 means charging from 0% to 90%
-        self.readLatency *= _numRead
+        self.readLatency *= numRead
         
     def CalculatePower(self, _numRead):
         readDynamicEnergy = self.capTgGateN * self.numInput * self.tech.vdd * self.tech.vdd

@@ -13,6 +13,12 @@ from DFF import DFF
 from SwitchMatrix import SwitchMatrix
 from ShiftAdd import ShiftAdd
 
+def ceil(x):
+    return math.ceil(x)
+
+def log2(x):
+    return math.log2(x)
+
 class Array:
     
     def __init__(self, numRow, numCol, param, tech, gate_params):
@@ -43,6 +49,8 @@ class Array:
                                              param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.mux = Mux(numInput = math.ceil(self.numCol/self.numColMuxed), numSelection = self.numColMuxed,
                        param=self.param, tech=self.tech, gate_params=self.gate_params)
+        self.muxDecoder = RowDecoder(numAddrRow = math.ceil(math.log(self.numColMuxed, 2)), MUX = True,
+                                        param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.multilevelSenseAmp = MultilevelSenseAmp(numCol = self.numCol/self.numColMuxed, levelOutput = param.levelOutput,
                                                      param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.adder = Adder(numBit = self.adderBit-1, numAdder = self.numCol/self.numColMuxed,
@@ -97,6 +105,7 @@ class Array:
             self.wlDecoder.CalculateArea()
             self.wlDecoderDriver.CalculateArea()
             self.mux.CalculateArea()
+            self.muxDecoder.CalculateArea()
             self.multilevelSenseAmp.CalculateArea(self.widthArray)
             self.adder.CalculateArea()
             self.dff.CalculateArea()
@@ -105,7 +114,8 @@ class Array:
             # others, need to convert from NeuroSIM
             
             self.height = self.slSwitchMatrix.height + self.heightArray \
-                        + self.mux.height + self.multilevelSenseAmp.height \
+                        + self.mux.height + self.muxDecoder.height \
+                        + self.multilevelSenseAmp.height \
                         + self.adder.height + self.dff.height \
                         + self.shiftAddWeight.height
             self.width = max(self.widthArray + self.wlDecoder.width + self.wlDecoderDriver.width, self.adder.width)
@@ -136,7 +146,12 @@ class Array:
             self.wlDecoderDriver.CalculateLatency(self.capRow1, self.capRow1,
                                                   self.resRow, 1,
                                                   2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
-            # self.mux.CalculateLatency(0, 1)
+            self.mux.CalculateLatency(numRead=1)
+            self.muxDecoder.CalculateLatency(capLoad1=self.mux.capTgGateN*ceil(self.numCol/self.numColMuxed),
+                                             capLoad2=self.mux.capTgGateP*ceil(self.numCol/self.numColMuxed),
+                                             resLoad=0,
+                                             colnum=0,
+                                             numRead=1, numWrite=0)
             self.multilevelSenseAmp.CalculateLatency(currentMode=True, numColMuxed=1, numRead=1)
             self.adder.CalculateLatency(_capLoad=self.gate_params["capTgDrain"], _numRead=1)
             self.dff.CalculateLatency(1)
@@ -144,6 +159,7 @@ class Array:
             
             readLatency += self.wlDecoder.readLatency + self.wlDecoderDriver.readLatency # hide mux + muxdecoder + amp
             readLatency += self.colDelay
+            readLatency += self.muxDecoder.readLatency
             readLatency += self.multilevelSenseAmp.readLatency
             readLatency += self.adder.readLatency
             readLatency += self.dff.readLatency
@@ -177,6 +193,7 @@ class Array:
                                                 self.numRow*self.activityRowRead*self.numColMuxed, 
                                                 2*numWriteOperationPerRow*self.numRow*self.activityRowWrite)
             self.mux.CalculatePower(self.numColMuxed)
+            self.muxDecoder.CalculatePower(self.numColMuxed, 1)
             self.multilevelSenseAmp.CalculatePower(self.numRow*self.activityRowRead)
             self.adder.CalculatePower(_numRead = self.numColMuxed*self.numRow*self.activityRowRead, 
                                       _numAdderPerOperation = numReadCells)
@@ -189,6 +206,7 @@ class Array:
             readDynamicEnergy = self.wlDecoder.readDynamicEnergy
             readDynamicEnergy += self.wlDecoderDriver.readDynamicEnergy
             readDynamicEnergy += self.mux.readDynamicEnergy
+            readDynamicEnergy += self.muxDecoder.readDynamicEnergy
             readDynamicEnergy += self.multilevelSenseAmp.readDynamicEnergy
             readDynamicEnergy += self.adder.readDynamicEnergy
             readDynamicEnergy += self.dff.readDynamicEnergy
