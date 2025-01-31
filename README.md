@@ -2,18 +2,20 @@
 This project provides tools to simulate and evaluate neural network (NN) inference using crossbar arrays. The simulations focus on key performance metrics such as NN accuracy, chip-level power consumption, hardware inference time, and hardware area.
 
 ## Quick Start Guide
-### Step 1: Neural Network Accuracy Simulation
-1. Define your model architecture and dataset in `./models`
+## Step 1: Neural Network Accuracy Simulation
+Define your model architecture and dataset in `./models`
 
-2. Configure simulation parameters in `inferenceConfig.py`
+Configure simulation parameters in `inferenceConfig.py`, note that this config will only effect inference!
 
-3. Run the simulation script:
+Run the simulation script:
 
-    `python inference_sim.py`
+    python inference_sim.py
 
-### Step 2: Chip-Level Simulation
+It will generate NN traces (each layer's output), saved in `"./layer_record_[NN]/"`, these traces will be used in NeuroPySim core program, to calculate power, latency and area. 
 
-#### build:
+## Step 2: Chip-Level Simulation
+
+### build:
 
     cd from_neurosim
     mkdir build
@@ -23,7 +25,7 @@ This project provides tools to simulate and evaluate neural network (NN) inferen
 
 This creates the FormulaBindings.so shared object file, which allows Python scripts to access NeuroSIM parameters and formulas.
 
-#### Run chip sim
+### Run chip sim
 
     python Chip.py
 
@@ -41,12 +43,12 @@ This script calculates:
 
 ## Customization Guide
 
-### Read:
+## Read before using your config:
 you need to read.
 1. `./from_neurosim/param.cpp`: param defined by NeuroSIM.
 2. `./from_neurosim/bindings.cpp`: bind the NeuroSIM's formula.cpp to python.
 
-### Customization
+## Customization
 
 1. `Change the parser in `Chip.py`
 2. Add your customize cell in `./MemCell.py`
@@ -61,3 +63,11 @@ NeuroSIM v1.4
     Pybind11
     torch
     numpy
+
+# Appendix
+
+## Data relations on simulation
+1. Acc.: Related.
+2. Power: Related, on-off ratio of input vectors only.
+3. Latency: Related, numbit of input only.
+4. Area: Not related.
