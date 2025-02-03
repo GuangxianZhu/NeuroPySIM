@@ -6,6 +6,7 @@ from gate_calculator import horowitz
 
 from Decoder import RowDecoder
 from DecoderDriver import DecoderDriver
+from WLNewDecoderDriver import WLNewDecoderDriver
 from Mux import Mux
 from MultilevelSenseAmp import MultilevelSenseAmp
 from Adder import Adder
@@ -47,6 +48,8 @@ class Array:
                                     param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.wlDecoderDriver = DecoderDriver(numOutput = self.numRow, numLoad = self.numCol,
                                              param=self.param, tech=self.tech, gate_params=self.gate_params)
+        self.wlNewDecoderDriver = WLNewDecoderDriver(numWLRow = self.numRow,
+                                                     param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.mux = Mux(numInput = math.ceil(self.numCol/self.numColMuxed), numSelection = self.numColMuxed,
                        param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.muxDecoder = RowDecoder(numAddrRow = math.ceil(math.log(self.numColMuxed, 2)), MUX = True,
@@ -103,7 +106,7 @@ class Array:
             
             # peripheral circuits
             self.wlDecoder.CalculateArea()
-            self.wlDecoderDriver.CalculateArea()
+            self.wlNewDecoderDriver.CalculateArea() # 1T1R, cmos access
             self.mux.CalculateArea()
             self.muxDecoder.CalculateArea()
             self.multilevelSenseAmp.CalculateArea(self.widthArray)
@@ -118,34 +121,40 @@ class Array:
                         + self.multilevelSenseAmp.height \
                         + self.adder.height + self.dff.height \
                         + self.shiftAddWeight.height
-            self.width = max(self.widthArray + self.wlDecoder.width + self.wlDecoderDriver.width, self.adder.width)
+            self.width = max(self.widthArray + self.wlDecoder.width + self.wlNewDecoderDriver.width, self.adder.width)
             self.area = self.height * self.width
             
-            self.usedArea = self.areaArray + self.wlDecoder.area + self.wlDecoderDriver.area + self.multilevelSenseAmp.area + self.adder.area + self.dff.area + self.mux.area + self.slSwitchMatrix.area + self.shiftAddWeight.area
+            self.usedArea = self.areaArray + self.wlDecoder.area + self.wlNewDecoderDriver.area + self.multilevelSenseAmp.area + self.adder.area + self.dff.area + self.mux.area + self.slSwitchMatrix.area + self.shiftAddWeight.area
             assert self.usedArea <= self.area, "Error: Array area is smaller than the area of all components"
             self.emptyArea = self.area - self.usedArea
 
             
     def CalculateLatency(self):
+        # from NeuroSim.main.cpp, the CalculateclkFreq is true, so we choose this branch
         readLatency, writeLatency = 0,0
         readLatencyADC = 0
         
         if self.cell.MemCellType == RRAM:
-            capBL = self.lengthCol * 0.2e-15/1e-6
-            colRamp = 0
+            
+            # conventionalSequential, 
+            
+            self.capBL = self.lengthCol * 0.2e-15/1e-6
+            self.colRamp = 0
             tau = self.capCol * self.cell.resMemCellAvg
             self.colRamp = horowitz(tau, 0, 1e20)['rampOutput']
             self.colDelay = tau * 0.2 # assume the 15~20% voltage drop is enough for sensing
             
             self.numWriteOperationPerRow = math.ceil(self.numCol * self.activityRowWrite) / self.numWriteCellPerOperationNeuro
-                
-            # CalculateLatency()
+            
+            # CalculateclkFreq: true
             self.wlDecoder.CalculateLatency(self.capRow1, 0, 
                                             self.resRow, self.numCol, 
                                             1, 2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
-            self.wlDecoderDriver.CalculateLatency(self.capRow1, self.capRow1,
-                                                  self.resRow, 1,
-                                                  2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
+            # CMOS access
+            self.wlNewDecoderDriver.CalculateLatency(self.capRow1, self.capRow1,
+                                                    self.resRow, 1,
+                                                    2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
+            
             self.mux.CalculateLatency(numRead=1)
             self.muxDecoder.CalculateLatency(capLoad1=self.mux.capTgGateN*ceil(self.numCol/self.numColMuxed),
                                              capLoad2=self.mux.capTgGateP*ceil(self.numCol/self.numColMuxed),
@@ -153,19 +162,14 @@ class Array:
                                              colnum=0,
                                              numRead=1, numWrite=0)
             self.multilevelSenseAmp.CalculateLatency(currentMode=True, numColMuxed=1, numRead=1)
-            self.adder.CalculateLatency(_capLoad=self.gate_params["capTgDrain"], _numRead=1)
             self.dff.CalculateLatency(1)
-            # others: muxdecoder, amp
             
-            readLatency += self.wlDecoder.readLatency + self.wlDecoderDriver.readLatency # hide mux + muxdecoder + amp
+            readLatency += self.wlDecoder.readLatency + self.wlNewDecoderDriver.readLatency # hide mux + muxdecoder + amp
             readLatency += self.colDelay
-            readLatency += self.muxDecoder.readLatency
             readLatency += self.multilevelSenseAmp.readLatency
-            readLatency += self.adder.readLatency
-            readLatency += self.dff.readLatency
+            # TODO: SA encoder.readLatency
         
         self.readLatency = readLatency
-        self.writeLatency = writeLatency
             
     
     def CalculatePower(self):
@@ -189,9 +193,8 @@ class Array:
             readDynamicEnergy = 0
             self.wlDecoder.CalculatePower(self.numRow*self.numColMuxed, 2*self.numRow)
             readDynamicEnergy += self.wlDecoder.readDynamicEnergy
-            self.wlDecoderDriver.CalculatePower(numReadCells, numWriteCells, 
-                                                self.numRow*self.activityRowRead*self.numColMuxed, 
-                                                2*numWriteOperationPerRow*self.numRow*self.activityRowWrite)
+            self.wlNewDecoderDriver.CalculatePower(numRead = self.numRow*self.activityRowRead*self.numColMuxed, 
+                                                    numWrite = 2*numWriteOperationPerRow*self.numRow*self.activityRowWrite)
             self.mux.CalculatePower(self.numColMuxed)
             self.muxDecoder.CalculatePower(self.numColMuxed, 1)
             self.multilevelSenseAmp.CalculatePower(self.numRow*self.activityRowRead)
@@ -204,7 +207,7 @@ class Array:
             # others: muxdecoder ...
             
             readDynamicEnergy = self.wlDecoder.readDynamicEnergy
-            readDynamicEnergy += self.wlDecoderDriver.readDynamicEnergy
+            readDynamicEnergy += self.wlNewDecoderDriver.readDynamicEnergy
             readDynamicEnergy += self.mux.readDynamicEnergy
             readDynamicEnergy += self.muxDecoder.readDynamicEnergy
             readDynamicEnergy += self.multilevelSenseAmp.readDynamicEnergy
@@ -220,7 +223,7 @@ class Array:
             # leakage
             leakage = 0
             leakage += self.wlDecoder.leakage
-            leakage += self.wlDecoderDriver.leakage
+            leakage += self.wlNewDecoderDriver.leakage
             leakage += self.dff.leakage
             leakage += self.slSwitchMatrix.leakage
             # mux, senseamp no leakage
@@ -248,7 +251,7 @@ class Array:
         print(f"Breakdown of Each Component:")
         print(f"\tMemoryCrossbar: {self.areaArray*1e12:.3f}μm2, ({format_percentage(self.areaArray, self.area)})")
         print(f"\tWLDecoder: {self.wlDecoder.area*1e12:.3f}μm2, ({format_percentage(self.wlDecoder.area, self.area)})")
-        print(f"\tWLDecoderDriver: {self.wlDecoderDriver.area*1e12:.3f}μm2, ({format_percentage(self.wlDecoderDriver.area, self.area)})")
+        print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.area*1e12:.3f}μm2, ({format_percentage(self.wlNewDecoderDriver.area, self.area)})")
         print(f"\tMux: {self.mux.area*1e12:.3f}μm2, ({format_percentage(self.mux.area, self.area)})")
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.area*1e12:.3f}μm2, ({format_percentage(self.multilevelSenseAmp.area, self.area)})")
         print(f"\tAdder: {self.adder.area*1e12:.3f}μm2, ({format_percentage(self.adder.area, self.area)})")
@@ -260,18 +263,18 @@ class Array:
         print(f"Read Latency: {self.readLatency*1e9:.3f}ns")
         print(f"Breakdown of Each Component:")
         print(f"\tWLDecoder: {self.wlDecoder.readLatency*1e9:.3f}ns, ({format_percentage(self.wlDecoder.readLatency, self.readLatency)})")
-        print(f"\tWLDecoderDriver: {self.wlDecoderDriver.readLatency*1e9:.3f}ns, ({format_percentage(self.wlDecoderDriver.readLatency, self.readLatency)})")
+        print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.readLatency*1e9:.3f}ns, ({format_percentage(self.wlNewDecoderDriver.readLatency, self.readLatency)})")
         # print(f"\tMux: {self.mux.readLatency:.3f}, ({format_percentage(self.mux.readLatency, self.readLatency)})")
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSenseAmp.readLatency, self.readLatency)})")
-        print(f"\tAdder: {self.adder.readLatency*1e9:.3f}ns, ({format_percentage(self.adder.readLatency, self.readLatency)})")
-        print(f"\tDFF: {self.dff.readLatency*1e9:.3f}ns, ({format_percentage(self.dff.readLatency, self.readLatency)})")
+        # print(f"\tAdder: {self.adder.readLatency*1e9:.3f}ns, ({format_percentage(self.adder.readLatency, self.readLatency)})")
+        # print(f"\tDFF: {self.dff.readLatency*1e9:.3f}ns, ({format_percentage(self.dff.readLatency, self.readLatency)})")
         print("\n")
 
         # Power
         print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
         print(f"Breakdown of Each Component:")
         print(f"\tWLDecoder: {self.wlDecoder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoder.readDynamicEnergy, self.readDynamicEnergy)})")
-        print(f"\tWLDecoderDriver: {self.wlDecoderDriver.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoderDriver.readDynamicEnergy, self.readDynamicEnergy)})")
+        print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlNewDecoderDriver.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tMux: {self.mux.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.mux.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.multilevelSenseAmp.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tAdder: {self.adder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.adder.readDynamicEnergy, self.readDynamicEnergy)})")

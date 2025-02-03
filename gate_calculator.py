@@ -88,6 +88,23 @@ def compute_gate_params(param, tech) -> Dict[str, float]:
 
     # Cell
     minCellHeight = MAX_TRANSISTOR_HEIGHT * tech.featureSize
+    if tech.featureSize == 14 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_14nm/MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 10 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_10nm /MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 7 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_7nm /MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 5 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_5nm /MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 3 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_3nm /MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 2 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_2nm /MAX_TRANSISTOR_HEIGHT)
+    elif tech.featureSize == 1 * 1e-9:
+        minCellHeight *= (MAX_TRANSISTOR_HEIGHT_1nm /MAX_TRANSISTOR_HEIGHT)
+    else:
+        minCellHeight *= 1
+    
     minCellWidth = 2 * (POLY_WIDTH + MIN_GAP_BET_GATE_POLY) * tech.featureSize
     # RRAM
     resCellAccess = param.resistanceOn * IR_DROP_TOLERANCE
@@ -125,4 +142,15 @@ def CalculateGateCap(width, tech):
 
 def CalculateTransconductance(width, type, tech):
     return FormulaBindings.CalculateTransconductance(width, type, tech)
+
+def CalculateTransconductance(width, type, tech):
+    return FormulaBindings.CalculateTransconductance(width, type, tech)
+
+
+
+
+
+
+
+
 
