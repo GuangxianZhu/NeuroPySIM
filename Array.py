@@ -264,10 +264,7 @@ class Array:
         print(f"Breakdown of Each Component:")
         print(f"\tWLDecoder: {self.wlDecoder.readLatency*1e9:.3f}ns, ({format_percentage(self.wlDecoder.readLatency, self.readLatency)})")
         print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.readLatency*1e9:.3f}ns, ({format_percentage(self.wlNewDecoderDriver.readLatency, self.readLatency)})")
-        # print(f"\tMux: {self.mux.readLatency:.3f}, ({format_percentage(self.mux.readLatency, self.readLatency)})")
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSenseAmp.readLatency, self.readLatency)})")
-        # print(f"\tAdder: {self.adder.readLatency*1e9:.3f}ns, ({format_percentage(self.adder.readLatency, self.readLatency)})")
-        # print(f"\tDFF: {self.dff.readLatency*1e9:.3f}ns, ({format_percentage(self.dff.readLatency, self.readLatency)})")
         print("\n")
 
         # Power
