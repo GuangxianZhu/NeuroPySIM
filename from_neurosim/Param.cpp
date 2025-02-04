@@ -364,6 +364,15 @@ Param::Param() {
 	resistanceOff = 100e3*17;// 6e3*17;           // Roff resistance at Vr in the reported measurement dat (need to recalculate below if considering the nonlinearity)
 	maxConductance = (double) 1/resistanceOn;
 	minConductance = (double) 1/resistanceOff;
+	gateCapFeFET = 2.1717e-18;	        // Gate capacitance of FeFET (F)
+	polarization = 20;                  // polarization of FeFET (uC/cm^2)
+	maxNumLevelLTP = 60;	            // Maximum number of conductance states during LTP or weight increase
+	maxNumLevelLTD = 60;	            // Maximum number of conductance states during LTD or weight decrease
+	
+	writeVoltage = 4;
+	writePulseWidth = 50e-9;
+	nonlinearIV = false; 				// This option is to consider I-V nonlinearity in cross-point array or not
+	nonlinearity = 10; 					// This is the nonlinearity for the current ratio at Vw and Vw/2	
 	
 	// 230920 update 
 	// read voltage needed for mux energy calculation - read voltage is fixed for Neurosim1.4, due to the assumptions for the ADC modeling equation (refer to manual for more information)
@@ -384,7 +393,6 @@ Param::Param() {
 	readPulseWidth = 10e-9;             // read pulse width in sec
 	accessVoltage = 1.1;                // Gate voltage for the transistor in 1T1R
 	resistanceAccess = resistanceOn*IR_DROP_TOLERANCE;            // resistance of access CMOS in 1T1R
-	writeVoltage = 2;					// Enable level shifer if writeVoltage > 1.5V
 	
 	/*** Calibration parameters ***/
 	if(validated){

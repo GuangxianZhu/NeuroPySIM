@@ -62,6 +62,10 @@ def create_tiles(input_list, weight_list, args, log_text, param, tech, gate_para
 
         # accurate mode
         weight_matrix = load_weight(weight_file, args)
+        # make rand weight matrix old, same as weight matrix
+        # weight_matrix_old = load_weight(weight_file_old, args)
+        weight_matrix_old = np.random.randint(0, 2, weight_matrix.shape)
+        
         if weight_matrix.shape[0] != input_matrix.shape[0]:
             raise ValueError(f"{weight_file}: w_mat:{weight_matrix.shape[0]} != i_mat:{input_matrix.shape[0]}")
 
@@ -74,6 +78,7 @@ def create_tiles(input_list, weight_list, args, log_text, param, tech, gate_para
                         param, tech, gate_params)
 
             tile.copy_weight(weight_matrix)
+            tile.copy_weight_old(weight_matrix_old)
             tile.copy_input(input_matrix)
 
             tile.utilization *= speedUpY * speedUpX
@@ -233,6 +238,7 @@ if __name__ == "__main__":
     nTilesW = nTilesH
     chipLatency = 0
     chipReadDynamicEnergy = 0
+    chipWriteDynamicEnergy = 0
     for i in range(len(tiles)):
         tile = tiles[i]
         tile.CalculateArea()
@@ -244,12 +250,15 @@ if __name__ == "__main__":
         
         tile.CalculatePower()
         chipReadDynamicEnergy += tile.readDynamicEnergy
+        chipWriteDynamicEnergy += tile.writeDynamicEnergy
         
     print(f"Chip H: {chipH*1e6:.3f}um, W: {chipW*1e6:.3f}um")
     
     print(f"Chip latency (inference 1 sample): {chipLatency*1e9:.3f}ns")
     
     print(f"Chip read dynamic energy (inference 1 sample): {chipReadDynamicEnergy*1e9:.3f}nJ")
+    
+    print(f"Chip write dynamic energy (inference 1 sample): {chipWriteDynamicEnergy*1e9:.3f}nJ")
     
     print(f"Time elapsed: {time.time()-start_time:.3f}s")
     print("\n")

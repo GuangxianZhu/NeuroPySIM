@@ -56,6 +56,7 @@ public:
 	
 	double clkFreq, featuresize, readNoise, resistanceOn, resistanceOff, maxConductance, minConductance;
 	int temp, technode, wireWidth, multipleCells;
+	double gateCapFeFET, polarization;
 	double maxNumLevelLTP, maxNumLevelLTD, readVoltage, readPulseWidth, writeVoltage;
 	double accessVoltage, resistanceAccess;
 	double nonlinearIV, nonlinearity;

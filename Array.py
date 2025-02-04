@@ -218,7 +218,6 @@ class Array:
             # others: muxdecoder ...
             
             # writeDynamicEnergy (skip) *****
-            writeDynamicEnergy = 0
             
             # leakage
             leakage = 0
@@ -236,7 +235,6 @@ class Array:
         
         self.readDynamicEnergy = readDynamicEnergy
         self.readDynamicEnergyArray = readDynamicEnergyArray
-        self.writeDynamicEnergy = writeDynamicEnergy
         self.leakage = leakage
             
     def printInfo(self):
@@ -249,7 +247,7 @@ class Array:
         print(f"Area: {self.area*1e12:.3f}μm2, Height: {self.height*1e6:.3f}μm, Width: {self.width*1e6:.3f}μm")
         print(f"usedArea: {self.usedArea*1e12:.3f}μm2 ({format_percentage(self.usedArea, self.area)})")
         print(f"Breakdown of Each Component:")
-        print(f"\tMemoryCrossbar: {self.areaArray*1e12:.3f}μm2, ({format_percentage(self.areaArray, self.area)})")
+        print(f"\tMemCrossbar: {self.areaArray*1e12:.3f}μm2, ({format_percentage(self.areaArray, self.area)})")
         print(f"\tWLDecoder: {self.wlDecoder.area*1e12:.3f}μm2, ({format_percentage(self.wlDecoder.area, self.area)})")
         print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.area*1e12:.3f}μm2, ({format_percentage(self.wlNewDecoderDriver.area, self.area)})")
         print(f"\tMux: {self.mux.area*1e12:.3f}μm2, ({format_percentage(self.mux.area, self.area)})")
@@ -262,6 +260,7 @@ class Array:
         # Latency
         print(f"Read Latency: {self.readLatency*1e9:.3f}ns")
         print(f"Breakdown of Each Component:")
+        print(f"\tMemCrossbar: {self.readDynamicEnergyArray*1e9:.3f}ns, ({format_percentage(self.readDynamicEnergyArray, self.readLatency)})")
         print(f"\tWLDecoder: {self.wlDecoder.readLatency*1e9:.3f}ns, ({format_percentage(self.wlDecoder.readLatency, self.readLatency)})")
         print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.readLatency*1e9:.3f}ns, ({format_percentage(self.wlNewDecoderDriver.readLatency, self.readLatency)})")
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSenseAmp.readLatency, self.readLatency)})")
@@ -270,6 +269,7 @@ class Array:
         # Power
         print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
         print(f"Breakdown of Each Component:")
+        print(f"\tMemCrossbar: {self.readDynamicEnergyArray*1e9:.3f}nJ, ({format_percentage(self.readDynamicEnergyArray, self.readDynamicEnergy)})")
         print(f"\tWLDecoder: {self.wlDecoder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoder.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tWLDecoderDriver: {self.wlNewDecoderDriver.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlNewDecoderDriver.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tMux: {self.mux.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.mux.readDynamicEnergy, self.readDynamicEnergy)})")
