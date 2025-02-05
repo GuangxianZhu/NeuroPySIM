@@ -125,6 +125,14 @@ class Tile:
         self.leakage = 0
         calTimes = self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
         
+        # Write Dynamic Energy (SUM all stages, all subarrays in this func)
+        self.array.writeDynamicEnergy = 0
+        self.GetWriteUpdateEstimation(self.array)
+        self.writeDynamicEnergy = self.array.writeDynamicEnergy
+        
+        # Read Dynamic Energy
+        
+        # SLOW cal: all stage and all subarray's read energy
         # for stagei in range(self.stageNum_row):
         #     for stagej in range(self.stageNum_col):
         #         for i in range(self.num_subarray_row):
@@ -143,13 +151,8 @@ class Tile:
                             
         #                     self.readDynamicEnergy += self.array.readDynamicEnergy
         
-        # Write Dynamic Energy (SUM all stages, all subarrays in this func)
-        self.array.writeDynamicEnergy = 0
-        self.GetWriteUpdateEstimation(self.array)
-        self.writeDynamicEnergy = self.array.writeDynamicEnergy
-        
-        # Read Dynamic Energy
         # fast cal
+        self.array.activityRowRead = 0.75 # assume 75% of rows are read
         self.array.CalculatePower() # for 1 bit/each bit
         self.readDynamicEnergy += self.array.readDynamicEnergy * calTimes * self.input_bitlen
         self.leakage = self.array.leakage * calTimes
@@ -188,6 +191,7 @@ class Tile:
                             for j in range(subarray_weight.shape[1]):
                                 if self.param.memcelltype == RRAM:
                                     
+                                    # determine if a pulse is needed
                                     if abs(subarray_weight[i][j] - subarray_weight_old[i][j]) >= self.minDeltaConductance:
                                         rowSelected = True
                                         
@@ -196,27 +200,27 @@ class Tile:
                                             thisPulse = ceil(abs(subarray_weight[i][j] - subarray_weight_old[i][j]) / self.minDeltaConductance)
                                             numSetWritePulse = max(numSetWritePulse, thisPulse)
                                             # energy in each cell
-                                            V_2 = PM.writeVoltage ** 2
+                                            V = PM.writeVoltage
                                             R = abs(1/subarray_weight[i][j] + 1/subarray_weight_old[i][j]) / 2
                                             pulse_wd = PM.writePulseWidth # write pulse width
-                                            array.writeDynamicEnergy += (V_2 / R * pulse_wd) * thisPulse
+                                            array.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
                                 
                                         else: # LTD
                                             numReset += 1
                                             thisPulse = ceil(abs(subarray_weight[i][j] - subarray_weight_old[i][j]) / self.minDeltaConductance)
                                             numResetWritePulse = max(numResetWritePulse, thisPulse)
                                             # energy in each cell
-                                            V_2 = PM.writeVoltage ** 2
+                                            V = PM.writeVoltage
                                             R = abs(1/subarray_weight[i][j] + 1/subarray_weight_old[i][j]) / 2
-                                            pulse_wd = PM.writePulseWidth
-                                            array.writeDynamicEnergy += (V_2 / R * pulse_wd) * thisPulse
+                                            pulse_wd = PM.writePulseWidth # write pulse width
+                                            array.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
 
                                     else: # no update
                                         numSet += 0
                                         numReset += 0
                                 
                                 else: # SRAM
-                                    raise ValueError("SRAM is not supported for now.")
+                                    raise ValueError("SRAM or others are not supported for now.")
                             
                             if rowSelected and numSet>0: # if set happens in this row
                                 numSelectedRowSet += 1

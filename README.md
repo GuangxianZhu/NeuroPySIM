@@ -43,19 +43,29 @@ This script calculates:
 
 ## Customization Guide
 
-## Read before using your config:
-you need to read.
+### Read before using your config:
 1. `./from_neurosim/param.cpp`: param defined by NeuroSIM.
 2. `./from_neurosim/bindings.cpp`: bind the NeuroSIM's formula.cpp to python.
 
-## Customization
+### Crossbar
+#### Energy
+1. Check Memory cell read energy in `Array.py`.
+2. Check Memory cell write energy in `Tile.py`.
+#### Latency
+1. Check Memory cell read latency in `Array.py`.
+2. Check Memory cell write latency in `Tile.py`.
+#### Area
+1. Check `Array.py`.
 
-1. `Change the parser in `Chip.py`
-2. Add your customize cell in `./MemCell.py`
+### Peripheral Circuits
+1. Check each class.
+
 
 ## References
 
-NeuroSIM v1.4
+NeuroSIM v1.4 (inference)
+
+NeuroSIM v2.0 (train)
 
 ## Requirements
 
@@ -68,6 +78,7 @@ NeuroSIM v1.4
 
 ## Data relations on simulation
 1. Acc.: Related.
-2. Power: Related, on-off ratio of input vectors only.
-3. Latency: Related, numbit of input only.
-4. Area: Not related.
+2. Read Power: Related, on-off ratio of input vectors only.
+3. Write Energy: Related, Weight matrix before and after update.
+4. Latency: Related, numbit of input only.
+5. Area: Not related.
