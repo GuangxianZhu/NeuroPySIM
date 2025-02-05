@@ -211,7 +211,7 @@ class Array:
             
             # ReadDynamicEnergy *****
             # Array
-            self.readDynamicEnergyArray = self.CalReadDynamicEnergyArray(self.activityRowRead, numReadCells)
+            readDynamicEnergyArray = self.CalReadDynamicEnergyArray(self.activityRowRead, numReadCells)
 
             # Pheripheral circuits
             readDynamicEnergy = 0
@@ -238,9 +238,7 @@ class Array:
             readDynamicEnergy += self.dff.readDynamicEnergy
             # readDynamicEnergy += self.slSwitchMatrix.readDynamicEnergy # no readDynamicEnergy
             readDynamicEnergy += self.shiftAddWeight.readDynamicEnergy
-            
-            # writeDynamicEnergy (skip) *****
-            
+                        
             # leakage
             leakage = 0
             leakage += self.wlDecoder.leakage
@@ -255,7 +253,7 @@ class Array:
         else:
             raise NotImplementedError
         
-        self.readDynamicEnergy = readDynamicEnergy + self.readDynamicEnergyArray
+        self.readDynamicEnergy = readDynamicEnergy + readDynamicEnergyArray
         self.leakage = leakage
             
             
@@ -289,9 +287,7 @@ class Array:
         print("\n")
 
         # Power
-        print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
-        print(f"writeDynamicEnergy: {self.writeDynamicEnergy*1e9:.3f}nJ")
-        
+        print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")        
         print(f"Breakdown of Each Component:")
         print(f"\tMemCrossbar: {self.readDynamicEnergyArray*1e9:.3f}nJ, ({format_percentage(self.readDynamicEnergyArray, self.readDynamicEnergy)})")
         print(f"\tWLDecoder: {self.wlDecoder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoder.readDynamicEnergy, self.readDynamicEnergy)})")

@@ -230,7 +230,7 @@ if __name__ == "__main__":
     log_text = ""
     tiles, speedUp, log_text = create_tiles(input_list, weight_list, args,log_text, 
                                             param, tech, gate_params)
-    print("Util for tiles")
+    print("\nUtil for tiles")
     for tile in tiles:
         print('\t',tile.utilization)
     print("\n")
