@@ -127,7 +127,8 @@ class Tile:
         
         # Write Dynamic Energy (SUM all stages, all subarrays in this func)
         self.array.writeDynamicEnergy = 0
-        self.GetWriteUpdateEstimation(self.array)
+        # self.GetWriteUpdateEstimation(self.array) # slow, not recommended
+        self.GetWriteUpdateEstimation_speedUp(self.array) # speedup using numpy OPs
         self.writeDynamicEnergy = self.array.writeDynamicEnergy
         
         # Read Dynamic Energy
@@ -171,6 +172,8 @@ class Tile:
         maxNumWritePulse = max(PM.maxNumLevelLTP, PM.maxNumLevelLTD)
         self.minDeltaConductance = (PM.maxConductance-PM.minConductance)/maxNumWritePulse
         
+        minG, maxG = PM.minConductance, PM.maxConductance
+        
         # cal all stage and all subarray's write energy
         for stagei in range(self.stageNum_row):
             for stagej in range(self.stageNum_col):
@@ -179,6 +182,13 @@ class Tile:
                         
                         subarray_weight = self.container[stagei][stagej][arri][arrj]
                         subarray_weight_old = self.container_old[stagei][stagej][arri][arrj]
+                        
+                        if self.param.memcelltype == RRAM:
+                            # map 0->minG, 1->maxG, (for empty cells)
+                            subarray_weight = np.where(subarray_weight==0, minG, subarray_weight)
+                            subarray_weight = np.where(subarray_weight==1, maxG, subarray_weight)
+                            subarray_weight_old = np.where(subarray_weight_old==0, minG, subarray_weight_old)
+                            subarray_weight_old = np.where(subarray_weight_old==1, maxG, subarray_weight_old)
                         
                         numSelectedRowSet, numSelectedRowReset = 0, 0
                         numSelectedColSet, numSelectedColReset = 0, 0
@@ -261,6 +271,95 @@ class Tile:
                         activityColWrite += ((numSelectedColSet + numSelectedColReset) / 2.0) / subarray_weight.shape[1]
                         activityRowWrite += ((numSelectedRowSet + numSelectedRowReset) / 2.0) / subarray_weight.shape[0]
                         
+
+    def GetWriteUpdateEstimation_speedUp(self, array):
+        # from NeuroSIM 2.0
+        
+        PM = self.param
+        maxNumWritePulse = max(PM.maxNumLevelLTP, PM.maxNumLevelLTD)
+        self.minDeltaConductance = (PM.maxConductance-PM.minConductance)/maxNumWritePulse
+        
+        minG, maxG = PM.minConductance, PM.maxConductance
+        
+        # cal all stage and all subarray's write energy
+        for stagei in range(self.stageNum_row):
+            for stagej in range(self.stageNum_col):
+                for arri in range(self.num_subarray_row):
+                    for arrj in range(self.num_subarray_col):
+                        
+                        if self.param.memcelltype == RRAM:
+                        
+                            subarray_weight = self.container[stagei][stagej][arri][arrj]
+                            subarray_weight_old = self.container_old[stagei][stagej][arri][arrj]
+                            
+                            # map 0->minG, 1->maxG, (for empty cells)
+                            subarray_weight = np.where(subarray_weight==0, minG, subarray_weight)
+                            subarray_weight = np.where(subarray_weight==1, maxG, subarray_weight)
+                            subarray_weight_old = np.where(subarray_weight_old==0, minG, subarray_weight_old)
+                            subarray_weight_old = np.where(subarray_weight_old==1, maxG, subarray_weight_old)
+                            
+                            
+                            delta = subarray_weight - subarray_weight_old
+                            abs_delta = np.abs(delta)
+                            
+                            update_mask = abs_delta >= self.minDeltaConductance
+                            
+                            pulse_counts = np.ceil(abs_delta / self.minDeltaConductance)
+                            
+                            LTP_mask = (delta > 0) & update_mask
+                            LTD_mask = (delta < 0) & update_mask
+                            LTP_pulses = pulse_counts[LTP_mask]
+                            LTD_pulses = pulse_counts[LTD_mask]
+                            self.totalNumSetWritePulse = np.sum(LTP_pulses)
+                            self.totalNumResetWritePulse = np.sum(LTD_pulses)
+                            self.totalNumWritePulse = self.totalNumSetWritePulse + self.totalNumResetWritePulse
+                            
+                            V = PM.writeVoltage
+                            pulse_wd = PM.writePulseWidth
+                            
+                            R = np.abs(1/subarray_weight + 1/subarray_weight_old) / 2
+                            
+                            energy = np.zeros_like(subarray_weight, dtype=float)
+                            energy[update_mask] = V * ((V / R[update_mask]) * pulse_wd) * pulse_counts[update_mask]
+                            
+                            energy_LTP = np.sum(energy[LTP_mask])
+                            energy_LTD = np.sum(energy[LTD_mask])
+                            array.writeDynamicEnergy += energy_LTP + energy_LTD
+                            
+                            # 统计行和列上的更新数量
+                            # 对于每一行，判断是否存在 LTP 或 LTD 更新
+                            rows_with_LTP = np.any(LTP_mask, axis=1)  # 返回一个布尔数组，每个元素表示该行是否有 LTP
+                            rows_with_LTD = np.any(LTD_mask, axis=1)  # 同理
+                            
+                            numSelectedRowSet = np.sum(rows_with_LTP)
+                            numSelectedRowReset = np.sum(rows_with_LTD)
+                            
+                            # 对于列上更新计数（这里假设你希望统计更新次数）
+                            numSelectedColSet = np.sum(LTP_mask, axis=0)  # 这会返回一个数组，表示每一列的 LTP 更新数
+                            numSelectedColReset = np.sum(LTD_mask, axis=0)
+                            
+                            self.totalSelectedColSet = np.sum(numSelectedColSet)
+                            self.totalSelectedColReset = np.sum(numSelectedColReset)
+
+                            # 为了计算每一行的最大脉冲数，只对更新的元素计算
+                            # 初始化一个数组来存放每行的最大脉冲数
+                            row_max_LTP_pulses = np.zeros(subarray_weight.shape[0])
+                            row_max_LTD_pulses = np.zeros(subarray_weight.shape[0])
+
+                            for i in range(subarray_weight.shape[0]):
+                                # 针对每一行，提取对应行的脉冲数和更新标记
+                                row_LTP = pulse_counts[i, :][LTP_mask[i, :]]
+                                row_LTD = pulse_counts[i, :][LTD_mask[i, :]]
+                                if row_LTP.size > 0:
+                                    row_max_LTP_pulses[i] = np.max(row_LTP)
+                                if row_LTD.size > 0:
+                                    row_max_LTD_pulses[i] = np.max(row_LTD)
+
+                            self.totalNumSetWritePulse = np.sum(row_max_LTP_pulses)
+                            self.totalNumResetWritePulse = np.sum(row_max_LTD_pulses)
+
+                        else:
+                            raise ValueError("SRAM or others are not supported for now.")
         
 
     def copy_weight(self, matrix):

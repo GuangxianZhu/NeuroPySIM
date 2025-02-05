@@ -204,7 +204,6 @@ class Array:
                                     numDffPerOperation = numReadCells*(math.ceil(math.log2(self.numRow))/2 + self.param.cellBit))
             self.slSwitchMatrix.CalculatePower(self.numRow, self.numCol, self.activityRowRead, self.activityRowWrite)
             self.shiftAddWeight.CalculatePower((self.param.synapseBit-1) * math.ceil(self.numColMuxed/self.param.synapseBit)),
-            # others: muxdecoder ...
             
             readDynamicEnergy = self.wlDecoder.readDynamicEnergy
             readDynamicEnergy += self.wlNewDecoderDriver.readDynamicEnergy
@@ -215,7 +214,6 @@ class Array:
             readDynamicEnergy += self.dff.readDynamicEnergy
             # readDynamicEnergy += self.slSwitchMatrix.readDynamicEnergy # no readDynamicEnergy
             readDynamicEnergy += self.shiftAddWeight.readDynamicEnergy
-            # others: muxdecoder ...
             
             # writeDynamicEnergy (skip) *****
             
@@ -236,6 +234,7 @@ class Array:
         self.readDynamicEnergy = readDynamicEnergy
         self.readDynamicEnergyArray = readDynamicEnergyArray
         self.leakage = leakage
+            
             
     def printInfo(self):
         def format_percentage(value, total):
