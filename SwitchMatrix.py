@@ -68,16 +68,6 @@ class SwitchMatrix:
         # double sectionnum = param->numColSubArray/(param->buffernumber+1);
         sectionnum = self.param.numColSubArray/(self.param.buffernumber+1)
         
-        """
-        if (param->buffernumber ==0){
-			tr =  resTg * (capOutput) * 0.69 
-			+ param->unitcap * sectionnum * (0.69*resTg + 0.38*param->unitres*sectionnum);						
-		} else {
-			tr =  resTg * (capOutput) * 0.69 
-			+ param->unitcap *  sectionnum * (0.69*resTg + 0.38*param->unitres*sectionnum)
-			+ (param->unitcap * sectionnum * 0.69 + 0.69 * resTg) * param-> drivecapin;		
-		}
-        """
         if self.param.buffernumber == 0:
             tr = self.resTg * capOutput * 0.69 \
                 + self.param.unitcap * sectionnum * (0.69*self.resTg + 0.38*self.param.unitres*sectionnum)
@@ -90,7 +80,7 @@ class SwitchMatrix:
         self.readLatency *= numRead
         
         rampInput = 1e20
-        self.writeLatency = horowitz(tr, 0, rampInput)
+        self.writeLatency = horowitz(tr, 0, rampInput)["result"]
         self.writeLatency *= numWrite
         self.writeLatency += self.dff.readLatency # Use DFF read latency here because no write in the DFF module
         

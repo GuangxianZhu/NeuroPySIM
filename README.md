@@ -78,7 +78,7 @@ NeuroSIM v2.0 (train)
 
 ## Data relations on simulation
 1. Acc.: Related.
-2. Read Power: Related, on-off ratio of input vectors only.
+2. Read Power: Related, activity rows of input vectors only.
 3. Write Energy: Related, Weight matrix before and after update.
 4. Latency: Related, numbit of input only.
 5. Area: Not related.

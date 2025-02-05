@@ -160,10 +160,10 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='None', help='Model name: Transformer, VGG8, LeNet5, DenseNet40')
 
     # Architecture parameters
-    parser.add_argument('--ArrNumY', type=int, default=2, help='Must be (2^n) and (<=16), for easy AdderTree design')
-    parser.add_argument('--ArrNumX', type=int, default=2, help='Number of arrays in X direction')
-    parser.add_argument('--ArrRowSize', type=int, default=256, help='Size of array in Y direction')
-    parser.add_argument('--ArrColSize', type=int, default=256, help='Size of array in X direction')
+    parser.add_argument('--ArrNumY', type=int, default=1, help='Must be (2^n) and (<=16), for easy AdderTree design')
+    parser.add_argument('--ArrNumX', type=int, default=1, help='Number of arrays in X direction')
+    parser.add_argument('--ArrRowSize', type=int, default=128, help='Size of array in Y direction')
+    parser.add_argument('--ArrColSize', type=int, default=128, help='Size of array in X direction')
     parser.add_argument('--nBits', type=int, default=8, help='Value quantization bits')
     parser.add_argument('--cellBit', type=int, default=1, help='one cell can represent 2^cellBit values')
     parser.add_argument('--MappingMode', type=int, default=0, choices=[0, 1], help='Mapping mode: 0 for auto, 1 for manual')
@@ -178,7 +178,8 @@ if __name__ == "__main__":
     from gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
-    tech.Initialize(45, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)
+    tech.Initialize(45, FormulaBindings.DeviceRoadmap.LSTP, 
+                    FormulaBindings.TransistorType.conventional)
     param = FormulaBindings.Param()
     
     param.memcelltype = RRAM
@@ -236,9 +237,10 @@ if __name__ == "__main__":
     
     nTilesH = math.ceil(math.sqrt(len(tiles)))
     nTilesW = nTilesH
-    chipLatency = 0
+    chipReadLatency, chipWriteLatency = 0, 0
     chipReadDynamicEnergy = 0
     chipWriteDynamicEnergy = 0
+    
     for i in range(len(tiles)):
         tile = tiles[i]
         tile.CalculateArea()
@@ -246,19 +248,24 @@ if __name__ == "__main__":
         chipW = tile.width * nTilesW
         
         tile.CalculateLatency(speedUp[i])
-        chipLatency += tile.Latency
+        chipReadLatency += tile.readLatency
+        chipWriteLatency += tile.writeLatency
         
         tile.CalculatePower()
         chipReadDynamicEnergy += tile.readDynamicEnergy
         chipWriteDynamicEnergy += tile.writeDynamicEnergy
         
     print(f"Chip H: {chipH*1e6:.3f}um, W: {chipW*1e6:.3f}um")
+    print("-"*50)
     
-    print(f"Chip latency (inference 1 sample): {chipLatency*1e9:.3f}ns")
+    print(f"Chip ReadLatency (inference 1 sample): {chipReadLatency*1e9:.3f}ns")
+    print(f"\tper bit: {chipReadLatency/args.total_input_length*1e9:.3f}ns")
+    print(f"Chip WriteLatency (write weight into crossbar): {chipWriteLatency*1e9:.3f}ns")
+    print("-"*50)
     
     print(f"Chip read dynamic energy (inference 1 sample): {chipReadDynamicEnergy*1e9:.3f}nJ")
-    
-    print(f"Chip write dynamic energy (inference 1 sample): {chipWriteDynamicEnergy*1e9:.3f}nJ")
+    print(f"Chip write dynamic energy (write weight into crossbar): {chipWriteDynamicEnergy*1e9:.3f}nJ")
+    print("-"*50)
     
     print(f"Time elapsed: {time.time()-start_time:.3f}s")
     print("\n")

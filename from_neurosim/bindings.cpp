@@ -241,6 +241,11 @@ PYBIND11_MODULE(FormulaBindings, m) {
 
         .def_readwrite("sizingfactor_MUX", &Param::sizingfactor_MUX)
         .def_readwrite("sizingfactor_WLdecoder", &Param::sizingfactor_WLdecoder)
+        .def_readwrite("newswitchmatrixsizeratio", &Param::newswitchmatrixsizeratio)
+        .def_readwrite("switchmatrixsizeratio", &Param::switchmatrixsizeratio)
+        .def_readwrite("buffernumber", &Param::buffernumber)
+        .def_readwrite("buffersizeratio", &Param::buffersizeratio)
+
         .def_readwrite("Metal0", &Param::Metal0)
         .def_readwrite("Metal1", &Param::Metal1)
         .def_readwrite("AR_Metal0", &Param::AR_Metal0)

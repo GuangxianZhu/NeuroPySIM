@@ -33,6 +33,7 @@ class Array:
         self.numColMuxed = param.numColMuxed
         self.activityRowRead = 1.0 # % of rows that are activated in read, in real scene should be calculated from real data
         self.activityRowWrite = 1.0 # % of rows that are activated in write
+        self.totalNumWritePulse = 0 # modified in tile layer
         # self.numReadCellPerOperationNeuro = _numCol
         self.numWriteCellPerOperationNeuro = numCol
         self.adderBit = math.ceil(math.log(self.numRow, 2)) + self.param.cellBit
@@ -130,6 +131,7 @@ class Array:
 
             
     def CalculateLatency(self):
+        PM = self.param
         # from NeuroSim.main.cpp, the CalculateclkFreq is true, so we choose this branch
         readLatency, writeLatency = 0,0
         readLatencyADC = 0
@@ -155,6 +157,9 @@ class Array:
                                                     self.resRow, 1,
                                                     2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
             
+            self.slSwitchMatrix.CalculateLatency(numRead = 0, 
+                                                 numWrite = 2*self.numWriteOperationPerRow*self.numRow*self.activityRowWrite)
+            
             self.mux.CalculateLatency(numRead=1)
             self.muxDecoder.CalculateLatency(capLoad1=self.mux.capTgGateN*ceil(self.numCol/self.numColMuxed),
                                              capLoad2=self.mux.capTgGateP*ceil(self.numCol/self.numColMuxed),
@@ -164,30 +169,49 @@ class Array:
             self.multilevelSenseAmp.CalculateLatency(currentMode=True, numColMuxed=1, numRead=1)
             self.dff.CalculateLatency(1)
             
+            # readLatency
             readLatency += self.wlDecoder.readLatency + self.wlNewDecoderDriver.readLatency # hide mux + muxdecoder + amp
             readLatency += self.colDelay
             readLatency += self.multilevelSenseAmp.readLatency
             # TODO: SA encoder.readLatency
+            
+            # writeLatency
+            writeLatency += self.totalNumWritePulse*PM.writePulseWidth
+            writeLatency += max(self.wlDecoder.writeLatency + self.wlNewDecoderDriver.writeLatency, 
+                                self.slSwitchMatrix.writeLatency)
         
         self.readLatency = readLatency
-            
+        self.writeLatency = writeLatency
+        
+    
+    def CalReadDynamicEnergyArray(self, activity, numReadCells):
+        
+        capBL = self.lengthCol * 0.2e-15/1e-6
+        
+        readDynamicEnergyArray = 0
+        
+        readDynamicEnergyArray += capBL * (self.param.readVoltage ** 2) * numReadCells # Selected BLs activityColWrite
+        readDynamicEnergyArray += self.capRow2 * self.tech.vdd * self.tech.vdd
+        readDynamicEnergyArray *= self.numRow * activity * self.param.numColMuxed
+        
+        return readDynamicEnergyArray
+        
     
     def CalculatePower(self):
         
         self.readDynamicEnergy, self.writeDynamicEnergy, self.readDynamicEnergyArray = 0,0,0
+        numReadCells = math.ceil(self.numCol / self.param.numColMuxed)
+        numWriteOperationPerRow = 1
         
         if self.cell.MemCellType == RRAM:
-            numReadCells = math.ceil(self.numCol / self.param.numColMuxed)
-            numWriteCells = math.ceil(self.numCol)
-            numWriteOperationPerRow = 1
-            capBL = self.lengthCol * 0.2e-15/1e-6
             
-            # readDynamicEnergy *****
+            # WriteDynamicEnergy *****
+            # Array: Calculate in tile level
+            
+            
+            # ReadDynamicEnergy *****
             # Array
-            readDynamicEnergyArray = 0
-            readDynamicEnergyArray += capBL * (self.param.readVoltage ** 2) * numReadCells # Selected BLs activityColWrite
-            readDynamicEnergyArray += self.capRow2 * self.tech.vdd * self.tech.vdd; # Selected WL
-            readDynamicEnergyArray *= self.numRow * self.activityRowRead * self.param.numColMuxed
+            self.readDynamicEnergyArray = self.CalReadDynamicEnergyArray(self.activityRowRead, numReadCells)
 
             # Pheripheral circuits
             readDynamicEnergy = 0
@@ -231,8 +255,7 @@ class Array:
         else:
             raise NotImplementedError
         
-        self.readDynamicEnergy = readDynamicEnergy
-        self.readDynamicEnergyArray = readDynamicEnergyArray
+        self.readDynamicEnergy = readDynamicEnergy + self.readDynamicEnergyArray
         self.leakage = leakage
             
             
@@ -267,6 +290,8 @@ class Array:
 
         # Power
         print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
+        print(f"writeDynamicEnergy: {self.writeDynamicEnergy*1e9:.3f}nJ")
+        
         print(f"Breakdown of Each Component:")
         print(f"\tMemCrossbar: {self.readDynamicEnergyArray*1e9:.3f}nJ, ({format_percentage(self.readDynamicEnergyArray, self.readDynamicEnergy)})")
         print(f"\tWLDecoder: {self.wlDecoder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoder.readDynamicEnergy, self.readDynamicEnergy)})")
@@ -276,7 +301,7 @@ class Array:
         print(f"\tAdder: {self.adder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.adder.readDynamicEnergy, self.readDynamicEnergy)})")
         print(f"\tDFF: {self.dff.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.dff.readDynamicEnergy, self.readDynamicEnergy)})")
         print("\n")
-
+        
 if __name__ == '__main__':
     
     from gate_calculator import compute_gate_params
@@ -292,7 +317,7 @@ if __name__ == '__main__':
     
     array.CalculateArea()
     array.CalculateLatency()
-    array.CalculatePower()
+    array.CalculateEnergy()
     array.printInfo()
     
     

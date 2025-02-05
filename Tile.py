@@ -92,27 +92,27 @@ class Tile:
         #                     self.array.CalculateLatency(columnResistance)
         #                     self.Latency += self.array.readLatency
         
-        self.Latency = 0
+        self.readLatency, self.writeLatency = 0, 0
         subarray_input = self.input_container[0][0][0][0] #8b
-        # subarray_weight = self.container[0][0][0][0]
-        # input_col = subarray_input[:, 0]
-        # columnResistance = get_column_resistance_np(input_col, subarray_weight)
-        
+
         self.input_bitlen = subarray_input.shape[1]
         self.num_nbit_inputs = self.input_bitlen / self.param.synapseBit # 8b/8
         
         self.array.CalculateLatency()
-        self.Latency += self.array.readLatency * self.input_bitlen
+        self.readLatency += self.array.readLatency * self.input_bitlen
+        self.writeLatency += self.array.writeLatency
         
         # II. peripheral part
         # skip for now (buffer, relu, etc.)
         self.adderTree.CalculateLatency(self.num_nbit_inputs, 
                                         self.num_subarray_row, 0)
-        self.Latency += self.adderTree.readLatency
+        self.readLatency += self.adderTree.readLatency
         
         
-        self.Latency *= self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
-        self.Latency /= speedUp
+        self.readLatency *= self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
+        self.readLatency /= speedUp
+        
+        # writeLatency no need speedup
         
         
     
@@ -126,44 +126,44 @@ class Tile:
         calTimes = self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
         
         # Write Dynamic Energy (SUM all stages, all subarrays in this func)
-        self.array.writeDynamicEnergy = 0
-        # self.GetWriteUpdateEstimation(self.array) # slow, not recommended
-        self.GetWriteUpdateEstimation_speedUp(self.array) # speedup using numpy OPs
-        self.writeDynamicEnergy = self.array.writeDynamicEnergy
+        # self.GetWriteUpdateEstimation() # slow, not recommended
+        self.GetWriteUpdateEstimation_speedUp() # speedup using numpy OPs
+                
+        # DEBUG: check pulses
+        # print(f"setPulse: {self.totalNumSetWritePulse}, {self.totalNumSetWritePulse/self.totalNumWritePulse:.2f}")
+        # print(f"resetPulse: {self.totalNumResetWritePulse}, {self.totalNumResetWritePulse/self.totalNumWritePulse:.2f}")
         
         # Read Dynamic Energy
         
         # SLOW cal: all stage and all subarray's read energy
-        # for stagei in range(self.stageNum_row):
-        #     for stagej in range(self.stageNum_col):
-        #         for i in range(self.num_subarray_row):
-        #             for j in range(self.num_subarray_col):
-        #                 subarray_input = self.input_container[stagei][stagej][i][j]
-        #                 subarray_weight = self.container[stagei][stagej][i][j]
+        for stagei in range(self.stageNum_row):
+            for stagej in range(self.stageNum_col):
+                for i in range(self.num_subarray_row):
+                    for j in range(self.num_subarray_col):
                         
-        #                 for k in range(subarray_input.shape[1]):
-        #                     input_col = subarray_input[:, k]
-        #                     num_of_read_row = np.count_nonzero(input_col)
-        #                     activityRowRead = num_of_read_row / self.subarray_row_size
-                            
-        #                     self.array.activityRowRead = activityRowRead
-                            
-        #                     self.array.CalculatePower()
-                            
-        #                     self.readDynamicEnergy += self.array.readDynamicEnergy
-        
-        # fast cal
-        self.array.activityRowRead = 0.75 # assume 75% of rows are read
-        self.array.CalculatePower() # for 1 bit/each bit
-        self.readDynamicEnergy += self.array.readDynamicEnergy * calTimes * self.input_bitlen
-        self.leakage = self.array.leakage * calTimes
+                        subarray_input = self.input_container[stagei][stagej][i][j]
+                        
+                        nonzero_counts = np.count_nonzero(subarray_input, axis=0)
+                        activityRowReads = nonzero_counts / self.subarray_row_size    # 得到每一列的活动率
+
+                        # 然后遍历每一列的活动率进行功率计算
+                        for activity in activityRowReads:
+                            self.array.activityRowRead = activity
+                            self.array.CalculatePower()  # 计算后内部会更新 self.array.readDynamicEnergy
+                            self.readDynamicEnergy += self.array.readDynamicEnergy
+                    
+        # FAST cal: assume all columns have the same activity rate
+        # activity = 0.75
+        # self.array.activityRowRead = activity
+        # self.array.CalculatePower()
+        # self.readDynamicEnergy += self.array.readDynamicEnergy * calTimes * self.num_nbit_inputs
         
         self.adderTree.CalculatePower(self.num_nbit_inputs, self.num_subarray_row) # for n bits
         self.readDynamicEnergy += self.adderTree.readDynamicEnergy * calTimes
         self.leakage += self.adderTree.leakage * calTimes
     
 
-    def GetWriteUpdateEstimation(self, array):
+    def GetWriteUpdateEstimation(self):
         # from NeuroSIM 2.0
         
         PM = self.param
@@ -213,7 +213,7 @@ class Tile:
                                             V = PM.writeVoltage
                                             R = abs(1/subarray_weight[i][j] + 1/subarray_weight_old[i][j]) / 2
                                             pulse_wd = PM.writePulseWidth # write pulse width
-                                            array.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
+                                            self.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
                                 
                                         else: # LTD
                                             numReset += 1
@@ -223,7 +223,7 @@ class Tile:
                                             V = PM.writeVoltage
                                             R = abs(1/subarray_weight[i][j] + 1/subarray_weight_old[i][j]) / 2
                                             pulse_wd = PM.writePulseWidth # write pulse width
-                                            array.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
+                                            self.writeDynamicEnergy += V * (V / R * pulse_wd) * thisPulse
 
                                     else: # no update
                                         numSet += 0
@@ -272,7 +272,7 @@ class Tile:
                         activityRowWrite += ((numSelectedRowSet + numSelectedRowReset) / 2.0) / subarray_weight.shape[0]
                         
 
-    def GetWriteUpdateEstimation_speedUp(self, array):
+    def GetWriteUpdateEstimation_speedUp(self):
         # from NeuroSIM 2.0
         
         PM = self.param
@@ -280,6 +280,13 @@ class Tile:
         self.minDeltaConductance = (PM.maxConductance-PM.minConductance)/maxNumWritePulse
         
         minG, maxG = PM.minConductance, PM.maxConductance
+        
+        self.numSelectedRowSet, self.numSelectedRowReset = 0, 0
+        self.totalSelectedColSet, self.totalSelectedColReset = 0, 0
+        self.totalNumSetWritePulse, self.totalNumResetWritePulse = 0, 0
+        self.totalNumWritePulse = 0
+        
+        self.writeDynamicEnergy = 0
         
         # cal all stage and all subarray's write energy
         for stagei in range(self.stageNum_row):
@@ -297,10 +304,16 @@ class Tile:
                             subarray_weight = np.where(subarray_weight==1, maxG, subarray_weight)
                             subarray_weight_old = np.where(subarray_weight_old==0, minG, subarray_weight_old)
                             subarray_weight_old = np.where(subarray_weight_old==1, maxG, subarray_weight_old)
-                            
+
                             
                             delta = subarray_weight - subarray_weight_old
                             abs_delta = np.abs(delta)
+                            
+                            # debug info
+                            # print("subarray_weight sample:", subarray_weight[:5, :5])
+                            # print("subarray_weight_old sample:", subarray_weight_old[:5, :5])
+                            # print("delta sample:", delta[:5, :5])
+                            # print("abs_delta sample:", abs_delta[:5, :5])
                             
                             update_mask = abs_delta >= self.minDeltaConductance
                             
@@ -308,11 +321,8 @@ class Tile:
                             
                             LTP_mask = (delta > 0) & update_mask
                             LTD_mask = (delta < 0) & update_mask
-                            LTP_pulses = pulse_counts[LTP_mask]
-                            LTD_pulses = pulse_counts[LTD_mask]
-                            self.totalNumSetWritePulse = np.sum(LTP_pulses)
-                            self.totalNumResetWritePulse = np.sum(LTD_pulses)
-                            self.totalNumWritePulse = self.totalNumSetWritePulse + self.totalNumResetWritePulse
+                            # LTP_pulses = pulse_counts[LTP_mask]
+                            # LTD_pulses = pulse_counts[LTD_mask]
                             
                             V = PM.writeVoltage
                             pulse_wd = PM.writePulseWidth
@@ -324,22 +334,22 @@ class Tile:
                             
                             energy_LTP = np.sum(energy[LTP_mask])
                             energy_LTD = np.sum(energy[LTD_mask])
-                            array.writeDynamicEnergy += energy_LTP + energy_LTD
+                            self.writeDynamicEnergy += energy_LTP + energy_LTD
                             
                             # 统计行和列上的更新数量
                             # 对于每一行，判断是否存在 LTP 或 LTD 更新
                             rows_with_LTP = np.any(LTP_mask, axis=1)  # 返回一个布尔数组，每个元素表示该行是否有 LTP
                             rows_with_LTD = np.any(LTD_mask, axis=1)  # 同理
                             
-                            numSelectedRowSet = np.sum(rows_with_LTP)
-                            numSelectedRowReset = np.sum(rows_with_LTD)
+                            self.numSelectedRowSet += np.sum(rows_with_LTP)
+                            self.numSelectedRowReset += np.sum(rows_with_LTD)
                             
                             # 对于列上更新计数（这里假设你希望统计更新次数）
                             numSelectedColSet = np.sum(LTP_mask, axis=0)  # 这会返回一个数组，表示每一列的 LTP 更新数
                             numSelectedColReset = np.sum(LTD_mask, axis=0)
                             
-                            self.totalSelectedColSet = np.sum(numSelectedColSet)
-                            self.totalSelectedColReset = np.sum(numSelectedColReset)
+                            self.totalSelectedColSet += np.sum(numSelectedColSet)
+                            self.totalSelectedColReset += np.sum(numSelectedColReset)
 
                             # 为了计算每一行的最大脉冲数，只对更新的元素计算
                             # 初始化一个数组来存放每行的最大脉冲数
@@ -355,8 +365,11 @@ class Tile:
                                 if row_LTD.size > 0:
                                     row_max_LTD_pulses[i] = np.max(row_LTD)
 
-                            self.totalNumSetWritePulse = np.sum(row_max_LTP_pulses)
-                            self.totalNumResetWritePulse = np.sum(row_max_LTD_pulses)
+                            localSetPulse = np.sum(row_max_LTP_pulses)
+                            localResetPulse = np.sum(row_max_LTD_pulses)
+                            self.totalNumSetWritePulse += localSetPulse
+                            self.totalNumResetWritePulse += localResetPulse
+                            self.totalNumWritePulse += (localSetPulse + localResetPulse)
 
                         else:
                             raise ValueError("SRAM or others are not supported for now.")
