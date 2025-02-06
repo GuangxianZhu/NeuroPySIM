@@ -117,18 +117,18 @@ class MultilevelSenseAmp:
         """
         in cpp (45nm):
         if (Res<695) {
-						latency = -2.66629E-10* log(x) + 3.07867E-09 ;
-					}
-					else if ((Res>=695) && (Res<4832)) {
-						latency = -6.27624E-11* log(x) + 1.78932E-09; 
-					}
-					else {
-						latency = 1.43578E-14* x  + 1.46251E-09 ; 
-					}
-					refcap=9.21E-15;
-					dC=0.9E-9;
-					R2=0.1E+6;
-					resthreshold=4.83E+3;
+            latency = -2.66629E-10* log(x) + 3.07867E-09 ;
+        }
+        else if ((Res>=695) && (Res<4832)) {
+            latency = -6.27624E-11* log(x) + 1.78932E-09; 
+        }
+        else {
+            latency = 1.43578E-14* x  + 1.46251E-09 ; 
+        }
+        refcap=9.21E-15;
+        dC=0.9E-9;
+        R2=0.1E+6;
+        resthreshold=4.83E+3;
         """
         x = Res
         if Res<695:

@@ -67,19 +67,19 @@ Param::Param() {
 	technode = 22;					    // Technology node (nm), using 22, 14, 7
 
 	synapseBit = 8;				// precision of synapse weight
-	numBitInput = synapseBit;   // precision of input activation
+	numBitInput = 8;   // precision of input activation
 
 	numRowSubArray = 128;               // # of rows in single subArray
 	numColSubArray = 128;               // # of columns in single subArray
 
-	numColMuxed = synapseBit;                    // How many columns share 1 ADC (for eNVM and FeFET) or parallel SRAM
+	numColMuxed = 8;                    // How many columns share 1 ADC (for eNVM and FeFET) or parallel SRAM
 	levelOutput = 32;                   // # of levels of the multilevelSenseAmp output, should be in 2^N forms; e.g. 32 levels --> 5-bit ADC
 
 	globalBusType = false;		// false: X-Y Bus <<
 								// true: H-Tree
 
 	/***************************************** user defined design options and parameters *****************************************/
-	operationmode = 2;     		// 1: conventionalSequential (Use several multi-bit RRAM as one synapse)
+	operationmode = 1;     		// 1: conventionalSequential (Use several multi-bit RRAM as one synapse)
 								// 2: conventionalParallel (Use several multi-bit RRAM as one synapse) <<
 	
 	accesstype = 1;         	// 1: cell.accessType = CMOS_access <<

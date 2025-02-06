@@ -178,9 +178,10 @@ if __name__ == "__main__":
     from gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
-    tech.Initialize(45, FormulaBindings.DeviceRoadmap.LSTP, 
-                    FormulaBindings.TransistorType.conventional)
-    param = FormulaBindings.Param()
+    tech.Initialize(args.technode, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)
+    
+    from Param import Param
+    param = Param()
     
     param.memcelltype = RRAM
     param.numRowSubArray = args.ArrRowSize
@@ -255,12 +256,16 @@ if __name__ == "__main__":
         chipReadDynamicEnergy += tile.readDynamicEnergy
         chipWriteDynamicEnergy += tile.writeDynamicEnergy
         
+        if i == 0:
+            tile.array.writeDynamicEnergy = tile.writeDynamicEnergy / (tile.stageNum_row*tile.stageNum_col * tile.num_subarray_row*tile.num_subarray_col)
+            tile.array.printInfo()
+        
     print(f"Chip H: {chipH*1e6:.3f}um, W: {chipW*1e6:.3f}um")
     print("-"*50)
     
-    print(f"Chip ReadLatency (inference 1 sample): {chipReadLatency*1e9:.3f}ns")
-    print(f"\tper bit: {chipReadLatency/args.total_input_length*1e9:.3f}ns")
-    print(f"Chip WriteLatency (write weight into crossbar): {chipWriteLatency*1e9:.3f}ns")
+    print(f"Chip ReadLatency (inference 1 sample): {chipReadLatency*1e3:.3f}ms")
+    print(f"\tper bit: {chipReadLatency/args.total_input_length*1e3:.7f}ms")
+    print(f"Chip WriteLatency (write weight into crossbar): {chipWriteLatency*1e3:.3f}ms")
     print("-"*50)
     
     print(f"Chip read dynamic energy (inference 1 sample): {chipReadDynamicEnergy*1e9:.3f}nJ")
@@ -270,4 +275,3 @@ if __name__ == "__main__":
     print(f"Time elapsed: {time.time()-start_time:.3f}s")
     print("\n")
     
-    tile.array.printInfo()

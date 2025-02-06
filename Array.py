@@ -42,8 +42,10 @@ class Array:
         self.unitWireRes = 1
         
         self.cell = MemCell(param)
-        self.cell.resMemCellAvg = 1/(1/(param.resistanceOn + self.cell.resCellAccess ) * self.numRow/2.0 + 1/(param.resistanceOff + self.cell.resCellAccess )* self.numRow/2.0) * self.numRow
-        
+        # self.cell.resMemCellAvg = 1/(1/(self.cell.resMemCellOn ) * self.numRow/2.0 + 1/(self.cell.resMemCellOff)* self.numRow/2.0) * self.numRow
+        # Use a single average resistance value in system simulations to represent the mix of low-resistance and high-resistance cells throughout the array
+        self.cell.resMemCellAvg = 2 * self.cell.resMemCellOn * self.cell.resMemCellOff / (self.cell.resMemCellOn + self.cell.resMemCellOff)
+
         # init components
         self.wlDecoder = RowDecoder(numAddrRow = math.ceil(math.log(self.numRow, 2)), MUX = False, 
                                     param=self.param, tech=self.tech, gate_params=self.gate_params)
@@ -65,16 +67,12 @@ class Array:
                                            param=self.param, tech=self.tech, gate_params=self.gate_params)
         self.shiftAddWeight = ShiftAdd(numUnit = self.numAdder, numAdderBit = self.adderBit, numReadPulse = (param.synapseBit-1)*self.param.cellBit+1,
                                        param=self.param, tech=self.tech, gate_params=self.gate_params)
-        # still need to convert from NeuroSIM, (cpp to python)
-        # muxDecoder.Initialize(REGULAR_ROW, (int)ceil(log2(numColMuxed)), true, false)
         
         
         if self.cell.MemCellType == SRAM:
             raise NotImplementedError
             # self.lengthRow = self.numCol * self.cell.widthInFeatureSize * tech.featureSize
             # self.lengthCol = self.numRow * self.cell.heightInFeatureSize * tech.featureSize
-            # param.arraywidthunit = self.cell.widthInFeatureSize * tech.featureSize
-            # param.arrayheight = self.numRow * self.cell.heightInFeatureSize * tech.featureSize
         
         
         elif self.cell.MemCellType == RRAM:
@@ -83,8 +81,6 @@ class Array:
             # 1T1R cell
             self.lengthRow = self.numCol * cellWidth * tech.featureSize
             self.lengthCol = self.numRow * cellHeight * tech.featureSize
-            param.arraywidthunit = cellWidth * tech.featureSize
-            param.arrayheight = self.numRow * cellHeight * tech.featureSize
         
         self.capRow1 = self.lengthRow * 0.2e-15/1e-6 # BL for 1T1R, WL for Cross-point and SRAM
         self.capRow2 = self.lengthRow * 0.2e-15/1e-6 # WL for 1T1R
@@ -93,10 +89,6 @@ class Array:
         self.resRow = self.lengthRow * param.Metal1_unitwireresis
         self.resCol = self.lengthCol * param.Metal0_unitwireresis
         
-        # if self.cell.MemCellType == SRAM:
-        #     # firstly calculate the CMOS resistance and capacitance
-        #     resCellAccess = CalculateOnResistance(param.widthAccessCMOS*tech.featureSize, NMOS, param.temperature, tech)
-        #     capCellAccess = CalculateDrainCap(param.widthAccessCMOS*tech.featureSize, NMOS, MAX_TRANSISTOR_HEIGHT*tech.featureSize, tech)
         
     def CalculateArea(self):
         if self.cell.MemCellType == RRAM:
@@ -259,7 +251,6 @@ class Array:
             
     def printInfo(self):
         def format_percentage(value, total):
-            """计算百分比并保留三位小数，如果 total 为零则返回 0.000%"""
             return f"{(value / total * 100):.3f}%" if total != 0 else "0.000%"
 
         print(f"Summary of Array:")
@@ -286,8 +277,10 @@ class Array:
         print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSenseAmp.readLatency, self.readLatency)})")
         print("\n")
 
-        # Power
-        print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")        
+        # Energy
+        print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
+        print(f"Write Dynamic Energy: {self.writeDynamicEnergy*1e9:.3f}nJ")
+        print(f"Leakage: {self.leakage*1e9:.3f}nJ")
         print(f"Breakdown of Each Component:")
         print(f"\tMemCrossbar: {self.readDynamicEnergyArray*1e9:.3f}nJ, ({format_percentage(self.readDynamicEnergyArray, self.readDynamicEnergy)})")
         print(f"\tWLDecoder: {self.wlDecoder.readDynamicEnergy*1e9:.3f}nJ, ({format_percentage(self.wlDecoder.readDynamicEnergy, self.readDynamicEnergy)})")
@@ -303,9 +296,20 @@ if __name__ == '__main__':
     from gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
-    tech.Initialize(22, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)
+    tech.Initialize(22, FormulaBindings.DeviceRoadmap.LSTP, 
+                    FormulaBindings.TransistorType.conventional)
     param = FormulaBindings.Param()
+    
     param.memcelltype = RRAM
+    param.numRowSubArray = 128
+    param.numColSubArray = 128
+    param.synapseBit = 8 
+    param.numColMuxed = 8
+    param.cellBit = 1
+    param.technode = 22
+    param.temp = 300
+    param.levelOutput = 32
+    
     gate_params = compute_gate_params(param, tech)
     
     # test
@@ -313,7 +317,7 @@ if __name__ == '__main__':
     
     array.CalculateArea()
     array.CalculateLatency()
-    array.CalculateEnergy()
+    array.CalculatePower()
     array.printInfo()
     
     

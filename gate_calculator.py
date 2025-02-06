@@ -87,6 +87,7 @@ def compute_gate_params(param, tech) -> Dict[str, float]:
     gate_params['capTgGateN'], gate_params['capTgGateP'] = capTgGateN, capTgGateP
 
     # Cell
+    MemCellType = param.memcelltype
     minCellHeight = MAX_TRANSISTOR_HEIGHT * tech.featureSize
     if tech.featureSize == 14 * 1e-9:
         minCellHeight *= (MAX_TRANSISTOR_HEIGHT_14nm/MAX_TRANSISTOR_HEIGHT)
@@ -106,10 +107,7 @@ def compute_gate_params(param, tech) -> Dict[str, float]:
         minCellHeight *= 1
     
     minCellWidth = 2 * (POLY_WIDTH + MIN_GAP_BET_GATE_POLY) * tech.featureSize
-    # RRAM
-    resCellAccess = param.resistanceOn * IR_DROP_TOLERANCE
     gate_params['minCellHeight'], gate_params['minCellWidth'] = minCellHeight, minCellWidth
-    gate_params['resCellAccess'] = resCellAccess
     
     return gate_params
     

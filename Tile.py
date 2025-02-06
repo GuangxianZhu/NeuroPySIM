@@ -19,24 +19,19 @@ class Tile:
         self.num_subarray_col = num_subarray_col  # num of array in X direction
         self.subarray_row_size = subarray_row_size  # size of array in Y direction
         self.subarray_col_size = subarray_col_size  # size of array in X direction
-        # self.container = np.zeros((stageNum_row, stageNum_col, 
-        #                            num_subarray_row, num_subarray_col, 
-        #                            subarray_row_size, subarray_col_size), dtype=np.int8)
-        # self.container_old = np.zeros((stageNum_row, stageNum_col,
-        #                             num_subarray_row, num_subarray_col,
-        #                             subarray_row_size, subarray_col_size), dtype=np.int8)
         
         self.utilization = 0.0
         self.param = param
         self.tech = tech
         self.gate_params = gate_params
         
-        #
         self.numBitSubarrayOutput = ceil(log2(subarray_row_size)) \
             + param.cellBit \
             + param.synapseBit \
             + (param.synapseBit - 1)*param.cellBit + 1
         self.numAdderTree = num_subarray_row * (subarray_col_size/param.synapseBit)
+        
+        self.totalNumWritePulse = -1
         
         self.array = Array(numRow=param.numRowSubArray, numCol=param.numColSubArray,
                            param=param, tech=tech, gate_params=gate_params)
@@ -46,8 +41,6 @@ class Tile:
         self.adderTree = AdderTree(numSubcoreRow=stageNum_row, numAdderBit=self.numBitSubarrayOutput,
                                    numAdderTree=self.numAdderTree, 
                                    param=param, tech=tech, gate_params=gate_params)
-        
-        
         
     def CalculateArea(self):
         
@@ -76,36 +69,25 @@ class Tile:
         if self.weight_cpoied==False or self.input_copied==False:
             raise ValueError("cannot cal latency, Weight or input matrix is not copied to the Tile.")
         
-        # data related latency
         # I. array part
-        # self.Latency = 0
-        # for stagei in range(self.stageNum_row):
-        #     for stagej in range(self.stageNum_col):
-        #         for i in range(self.num_subarray_row):
-        #             for j in range(self.num_subarray_col):
-        #                 subarray_input = self.input_container[stagei][stagej][i][j] # (k, l)
-        #                 subarray_weight = self.container[stagei][stagej][i][j] # (k, m)
-                        
-        #                 for k in range(subarray_input.shape[1]):
-        #                     input_col = subarray_input[:, k]
-        #                     columnResistance = get_column_resistance_np(input_col, subarray_weight)
-        #                     self.array.CalculateLatency(columnResistance)
-        #                     self.Latency += self.array.readLatency
-        
         self.readLatency, self.writeLatency = 0, 0
-        subarray_input = self.input_container[0][0][0][0] #8b
+        subarray_input = self.input_container[0][0][0][0] # 8b
 
         self.input_bitlen = subarray_input.shape[1]
         self.num_nbit_inputs = self.input_bitlen / self.param.synapseBit # 8b/8
         
+        # Write Dynamic Energy (SUM all stages, all subarrays in this func),
+        # calculate here because we need numpulses for write latency
+        self.GetWriteUpdateEstimation_speedUp()
+        
+        if self.totalNumWritePulse == -1: raise ValueError("totalNumWritePulse is not calculated.")
+        self.array.totalNumWritePulse = self.totalNumWritePulse
         self.array.CalculateLatency()
         self.readLatency += self.array.readLatency * self.input_bitlen
-        self.writeLatency += self.array.writeLatency
         
         # II. peripheral part
         # skip for now (buffer, relu, etc.)
-        self.adderTree.CalculateLatency(self.num_nbit_inputs, 
-                                        self.num_subarray_row, 0)
+        self.adderTree.CalculateLatency(self.num_nbit_inputs, self.num_subarray_row, 0)
         self.readLatency += self.adderTree.readLatency
         
         
@@ -113,21 +95,16 @@ class Tile:
         self.readLatency /= speedUp
         
         # writeLatency no need speedup
+        self.writeLatency += self.array.writeLatency
         
-        
-    
     def CalculatePower(self):
         if self.weight_cpoied==False or self.input_copied==False:
             raise ValueError("cannot cal latency, Weight or input matrix is not copied to the Tile.")
         
         self.readDynamicEnergy = 0
-        self.writeDynamicEnergy = 0
+        # self.writeDynamicEnergy = 0
         self.leakage = 0
         calTimes = self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
-        
-        # Write Dynamic Energy (SUM all stages, all subarrays in this func)
-        # self.GetWriteUpdateEstimation() # slow, not recommended
-        self.GetWriteUpdateEstimation_speedUp() # speedup using numpy OPs
                 
         # DEBUG: check pulses
         # print(f"setPulse: {self.totalNumSetWritePulse}, {self.totalNumSetWritePulse/self.totalNumWritePulse:.2f}")
@@ -144,12 +121,11 @@ class Tile:
                         subarray_input = self.input_container[stagei][stagej][i][j]
                         
                         nonzero_counts = np.count_nonzero(subarray_input, axis=0)
-                        activityRowReads = nonzero_counts / self.subarray_row_size    # 得到每一列的活动率
+                        activityRowReads = nonzero_counts / self.subarray_row_size    # each col's activity rate 
 
-                        # 然后遍历每一列的活动率进行功率计算
                         for activity in activityRowReads:
                             self.array.activityRowRead = activity
-                            self.array.CalculatePower()  # 计算后内部会更新 self.array.readDynamicEnergy
+                            self.array.CalculatePower()
                             self.readDynamicEnergy += self.array.readDynamicEnergy
                     
         # FAST cal: assume all columns have the same activity rate
@@ -284,7 +260,6 @@ class Tile:
         self.numSelectedRowSet, self.numSelectedRowReset = 0, 0
         self.totalSelectedColSet, self.totalSelectedColReset = 0, 0
         self.totalNumSetWritePulse, self.totalNumResetWritePulse = 0, 0
-        self.totalNumWritePulse = 0
         
         self.writeDynamicEnergy = 0
         
@@ -305,15 +280,8 @@ class Tile:
                             subarray_weight_old = np.where(subarray_weight_old==0, minG, subarray_weight_old)
                             subarray_weight_old = np.where(subarray_weight_old==1, maxG, subarray_weight_old)
 
-                            
                             delta = subarray_weight - subarray_weight_old
                             abs_delta = np.abs(delta)
-                            
-                            # debug info
-                            # print("subarray_weight sample:", subarray_weight[:5, :5])
-                            # print("subarray_weight_old sample:", subarray_weight_old[:5, :5])
-                            # print("delta sample:", delta[:5, :5])
-                            # print("abs_delta sample:", abs_delta[:5, :5])
                             
                             update_mask = abs_delta >= self.minDeltaConductance
                             
@@ -321,8 +289,6 @@ class Tile:
                             
                             LTP_mask = (delta > 0) & update_mask
                             LTD_mask = (delta < 0) & update_mask
-                            # LTP_pulses = pulse_counts[LTP_mask]
-                            # LTD_pulses = pulse_counts[LTD_mask]
                             
                             V = PM.writeVoltage
                             pulse_wd = PM.writePulseWidth
@@ -336,28 +302,28 @@ class Tile:
                             energy_LTD = np.sum(energy[LTD_mask])
                             self.writeDynamicEnergy += energy_LTP + energy_LTD
                             
-                            # 统计行和列上的更新数量
-                            # 对于每一行，判断是否存在 LTP 或 LTD 更新
-                            rows_with_LTP = np.any(LTP_mask, axis=1)  # 返回一个布尔数组，每个元素表示该行是否有 LTP
-                            rows_with_LTD = np.any(LTD_mask, axis=1)  # 同理
+                            # Count updates on rows and columns
+                            # For each row, determine if there is an LTP or LTD update
+                            rows_with_LTP = np.any(LTP_mask, axis=1)  # Returns a Boolean array, each element indicates whether the line has LTP
+                            rows_with_LTD = np.any(LTD_mask, axis=1)  # same as above
                             
                             self.numSelectedRowSet += np.sum(rows_with_LTP)
                             self.numSelectedRowReset += np.sum(rows_with_LTD)
                             
-                            # 对于列上更新计数（这里假设你希望统计更新次数）
-                            numSelectedColSet = np.sum(LTP_mask, axis=0)  # 这会返回一个数组，表示每一列的 LTP 更新数
+                            # For update counts on columns (assuming you want to count updates)
+                            numSelectedColSet = np.sum(LTP_mask, axis=0)  # This returns an array with the number of LTP updates for each column.
                             numSelectedColReset = np.sum(LTD_mask, axis=0)
                             
                             self.totalSelectedColSet += np.sum(numSelectedColSet)
                             self.totalSelectedColReset += np.sum(numSelectedColReset)
 
-                            # 为了计算每一行的最大脉冲数，只对更新的元素计算
-                            # 初始化一个数组来存放每行的最大脉冲数
+                            # To calculate the maximum number of pulses per row, only the updated elements are calculated
+                            # Initialize an array to store the maximum number of pulses per row
                             row_max_LTP_pulses = np.zeros(subarray_weight.shape[0])
                             row_max_LTD_pulses = np.zeros(subarray_weight.shape[0])
 
                             for i in range(subarray_weight.shape[0]):
-                                # 针对每一行，提取对应行的脉冲数和更新标记
+                                # For each row, extract the pulse number and update flag of the corresponding row
                                 row_LTP = pulse_counts[i, :][LTP_mask[i, :]]
                                 row_LTD = pulse_counts[i, :][LTD_mask[i, :]]
                                 if row_LTP.size > 0:
@@ -373,6 +339,7 @@ class Tile:
 
                         else:
                             raise ValueError("SRAM or others are not supported for now.")
+        
         
 
     def copy_weight(self, matrix):
