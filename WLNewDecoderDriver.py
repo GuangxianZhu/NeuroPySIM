@@ -2,7 +2,7 @@ import math
 from constant import *
 from MemCell import MemCell
 from from_neurosim.build import FormulaBindings
-from gate_calculator import CalculateGateLeakage, CalculateGateArea, CalculateGateCapacitance, CalculateOnResistance, horowitz, CalculateTransconductance
+from Gate_calculator import CalculateGateLeakage, CalculateGateArea, CalculateGateCapacitance, CalculateOnResistance, horowitz, CalculateTransconductance
 
 class WLNewDecoderDriver:
     def __init__(self, numWLRow, param, tech, gate_params: dict):

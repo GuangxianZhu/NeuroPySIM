@@ -2,7 +2,7 @@ import math
 from MemCell import MemCell
 from constant import *
 from from_neurosim.build import FormulaBindings
-from gate_calculator import horowitz
+from Gate_calculator import horowitz
 
 from Decoder import RowDecoder
 from DecoderDriver import DecoderDriver
@@ -293,7 +293,7 @@ class Array:
         
 if __name__ == '__main__':
     
-    from gate_calculator import compute_gate_params
+    from Gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
     tech.Initialize(22, FormulaBindings.DeviceRoadmap.LSTP, 

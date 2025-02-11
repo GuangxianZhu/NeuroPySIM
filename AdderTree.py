@@ -1,6 +1,6 @@
 import math
 from constant import *
-from gate_calculator import horowitz, CalculateTransconductance
+from Gate_calculator import horowitz, CalculateTransconductance
 from from_neurosim.build import FormulaBindings
 
 from Adder import Adder

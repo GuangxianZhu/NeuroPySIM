@@ -2,7 +2,7 @@ import math
 from constant import *
 from MemCell import MemCell
 from from_neurosim.build import FormulaBindings
-from gate_calculator import CalculateGateLeakage, CalculateGateArea, CalculateGateCapacitance, CalculateOnResistance, horowitz
+from Gate_calculator import CalculateGateLeakage, CalculateGateArea, CalculateGateCapacitance, CalculateOnResistance, horowitz
 
 class DecoderDriver:
     def __init__(self, numOutput:int, numLoad:int, param, tech, gate_params: dict):
@@ -86,7 +86,7 @@ class DecoderDriver:
 
 if __name__ == "__main__":
     
-    from gate_calculator import compute_gate_params
+    from Gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
     tech.Initialize(22, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)

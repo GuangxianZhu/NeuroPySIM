@@ -2,7 +2,7 @@ import math
 from MemCell import MemCell
 from constant import *
 from from_neurosim.build import FormulaBindings
-from gate_calculator import horowitz
+from Gate_calculator import horowitz
 
 from Decoder import RowDecoder
 from DecoderDriver import DecoderDriver

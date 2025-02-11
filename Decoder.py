@@ -1,7 +1,7 @@
 import math
 from constant import *
 from from_neurosim.build import FormulaBindings
-from gate_calculator import CalculateGateLeakage, horowitz
+from Gate_calculator import CalculateGateLeakage, horowitz
 
 class RowDecoder:
     
@@ -226,7 +226,7 @@ class RowDecoder:
 
 if __name__ == "__main__":
     
-    from gate_calculator import compute_gate_params
+    from Gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
     tech.Initialize(22, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)

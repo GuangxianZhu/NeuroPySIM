@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    from gate_calculator import compute_gate_params
+    from Gate_calculator import compute_gate_params
     
     tech = FormulaBindings.Technology()
     tech.Initialize(args.technode, FormulaBindings.DeviceRoadmap.LSTP, FormulaBindings.TransistorType.conventional)

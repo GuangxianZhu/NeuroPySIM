@@ -1,7 +1,7 @@
 import math
 from constant import * # include all constants, CMOS tech specifications, cal funcs, etc.
 from from_neurosim.build import FormulaBindings
-from gate_calculator import horowitz
+from Gate_calculator import horowitz
 from DFF import DFF
 
 class SwitchMatrix:
