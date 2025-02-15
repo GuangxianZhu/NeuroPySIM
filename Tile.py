@@ -37,8 +37,6 @@ class Tile:
         self.array = Array(numRow=param.numRowSubArray, numCol=param.numColSubArray,
                            param=param, tech=tech, gate_params=gate_params)
         
-        
-        
         self.adderTree = AdderTree(numSubcoreRow=stageNum_row, numAdderBit=self.numBitSubarrayOutput,
                                    numAdderTree=self.numAdderTree, 
                                    param=param, tech=tech, gate_params=gate_params)
@@ -68,9 +66,6 @@ class Tile:
     
     def CalculateLatency(self, speedUp:int):
         
-        maxConductance = self.param.maxConductance
-        minConductance = self.param.minConductance
-        
         if self.weight_cpoied==False or self.input_copied==False:
             raise ValueError("cannot cal latency, Weight or input matrix is not copied to the Tile.")
         
@@ -87,6 +82,7 @@ class Tile:
         
         if self.totalNumWritePulse == -1: raise ValueError("totalNumWritePulse is not calculated.")
         self.array.totalNumWritePulse = self.totalNumWritePulse
+        
         #########################################
         # Cycle-accurate latency calculation (SLOW)
         #########################################
@@ -132,14 +128,15 @@ class Tile:
         # II. peripheral part
         # skip for now (buffer, relu, etc.)
         self.adderTree.CalculateLatency(self.num_nbit_inputs, self.num_subarray_row, 0)
-        self.readLatency += self.adderTree.readLatency
+        # self.readLatency += self.adderTree.readLatency
         
         
-        self.readLatency *= self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
+        # self.readLatency *= self.stageNum_row * self.stageNum_col * self.num_subarray_row * self.num_subarray_col
         self.readLatency /= speedUp
         
         # writeLatency no need speedup
         self.writeLatency += self.array.writeLatency
+        
         
     def CalculatePower(self):
         if self.weight_cpoied==False or self.input_copied==False:
@@ -481,7 +478,7 @@ class Tile:
                                    self.num_subarray_row, self.num_subarray_col, 
                                    self.subarray_row_size, self.subarray_col_size))
         
-        print("copying weight matrix to the Tile...")
+        # print("copying weight matrix to the Tile...")
         total_capacity_rows = self.stageNum_row * self.num_subarray_row * self.subarray_row_size
         total_capacity_cols = self.stageNum_col * self.num_subarray_col * self.subarray_col_size
 
@@ -521,7 +518,7 @@ class Tile:
         self.container_old = np.zeros((self.stageNum_row, self.stageNum_col,
                                     self.num_subarray_row, self.num_subarray_col,
                                     self.subarray_row_size, self.subarray_col_size))
-        print("copying weight matrix (OLD) to the Tile...")
+        # print("copying weight matrix (OLD) to the Tile...")
         total_capacity_rows = self.stageNum_row * self.num_subarray_row * self.subarray_row_size
         total_capacity_cols = self.stageNum_col * self.num_subarray_col * self.subarray_col_size
         

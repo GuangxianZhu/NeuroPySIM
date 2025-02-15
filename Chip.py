@@ -193,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--ArrRowSize', type=int, default=128, help='Size of array in Y direction')
     parser.add_argument('--ArrColSize', type=int, default=128, help='Size of array in X direction')
     parser.add_argument('--nBits', type=int, default=8, help='Value quantization bits')
-    parser.add_argument('--RRAM_mode', type=int, default=RRAM_ANALOG, help='digital RRAM or analog RRAM')
+    parser.add_argument('--RRAM_mode', type=int, default=RRAM_ANALOG, help='RRAM_ANALOG|RRAM_DIGITAL: digital RRAM or analog RRAM')
     parser.add_argument('--cellBit', type=int, default=1, help='one cell can represent 2^cellBit values')
     parser.add_argument('--MappingMode', type=int, default=0, choices=[0, 1], help='Mapping mode: 0 for auto, 1 for manual')
     parser.add_argument('--levelOutput', type=int, default=32, help='Output level for amplifier')

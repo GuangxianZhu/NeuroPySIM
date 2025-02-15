@@ -400,6 +400,8 @@ class Array:
             print(f"\tMultilevelSenseAmp: {self.multilevelSenseAmp.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSenseAmp.readLatency, self.readLatency)})")
             print(f"\tMultilevelSAEncoder: {self.multilevelSAEncoder.readLatency*1e9:.3f}ns, ({format_percentage(self.multilevelSAEncoder.readLatency, self.readLatency)})")
             print("\n")
+            print(f"Write Latency: {self.writeLatency*1e9:.3f}ns")
+            print("\n")
             
             # Energy
             print(f"Read Dynamic Energy: {self.readDynamicEnergy*1e9:.3f}nJ")
