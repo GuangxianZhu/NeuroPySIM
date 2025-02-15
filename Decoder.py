@@ -67,8 +67,7 @@ class RowDecoder:
         
         return self.area
     
-    def CalculateLatency(self, capLoad1, capLoad2, resLoad, colnum,
-                         numRead, numWrite):
+    def CalculateLatency(self, capLoad1, capLoad2, numRead, numWrite):
         """
         capLoad1: 线路的等效电容负载
         capLoad2: 线路的等效电容负载
@@ -78,7 +77,6 @@ class RowDecoder:
         """
         self.rampInput = 1e20 # 输入信号的上升/下降斜率
         self.capLoad1, self.capLoad2 = capLoad1, capLoad2
-        self.resLoad = resLoad
         
         self.readLatency, self.writeLatency = 0, 0
         

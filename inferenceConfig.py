@@ -14,7 +14,7 @@ parser.add_argument('--test_interval', type=int, default=1,  help='how many epoc
 parser.add_argument('--logdir',                 default='log/default', help='folder to save to the log')
 
 # data format and precision
-parser.add_argument('--mode',       default='WAGE', help='WAGE|FP|SC, WAGE/FP: Quant-based, SC: Stochastic Computing')
+parser.add_argument('--mode',       default='WAGE', help='Quantization: WAGE|FP')
 parser.add_argument('--wl_weight',  type=int, default=8)
 parser.add_argument('--wl_activate',type=int, default=8)
 parser.add_argument('--wl_error',   type=int, default=8)
@@ -23,7 +23,7 @@ parser.add_argument('--wl_error',   type=int, default=8)
 parser.add_argument('--subArray', type=int, default=128, help='size of subArray, # of rows')
 
 # RRAM configuration
-parser.add_argument('--RRAM',       type=str,   default='RRAM_digital', help='RRAM_analog|RRAM_digital|NoRRAM')
+parser.add_argument('--RRAM',       type=str,   default='NoRRAM', help='RRAM_analog|RRAM_digital|NoRRAM')
 parser.add_argument('--ADCprecision', type=int, default=5)
 parser.add_argument('--onoffratio', type=float, default=10., help='device on/off ratio (e.g. Gmax/Gmin = 3)')
 parser.add_argument('--vari',       type=float, default=0., help='conductance variation (e.g. 0.1 standard deviation to generate random variation)')

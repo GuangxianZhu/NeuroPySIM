@@ -129,6 +129,9 @@ in cpp:
 SRAM = 0
 RRAM = 1
 
+RRAM_DIGITAL = 0
+RRAM_ANALOG = 1
+
 INV = 0
 NOR = 1
 NAND = 2

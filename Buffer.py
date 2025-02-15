@@ -14,5 +14,6 @@ from SwitchMatrix import SwitchMatrix
 from ShiftAdd import ShiftAdd
 
 class Buffer:
-    def __init__(self):
-        pass
+    def __init__(self, numBit, num_interface, SRAM:bool,
+                 param, tech, gate_params):
+        self.numBit = numBit

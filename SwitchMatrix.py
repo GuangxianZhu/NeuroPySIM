@@ -57,34 +57,25 @@ class SwitchMatrix:
             
         self.area = self.width * self.height
         
-    def CalculateLatency(self, numRead, numWrite):
+    def CalculateLatency(self, capLoad, resLoad, numRead, numWrite):
+        
+        GP = self.gate_params
+        rampInput = 1e20
         
         # dff
         self.dff.CalculateLatency(numRead)
-        capOutput = self.gate_params["capTgDrain"] * 2 \
-            + self.gate_params["capTgGateN"]*0.5 \
-            + self.gate_params["capTgGateP"]*0.5
-        
-        # double sectionnum = param->numColSubArray/(param->buffernumber+1);
-        sectionnum = self.param.numColSubArray/(self.param.buffernumber+1)
-        
-        if self.param.buffernumber == 0:
-            tr = self.resTg * capOutput * 0.69 \
-                + self.param.unitcap * sectionnum * (0.69*self.resTg + 0.38*self.param.unitres*sectionnum)
-        else:
-            tr = self.resTg * capOutput * 0.69 \
-                + self.param.unitcap * sectionnum * (0.69*self.resTg + 0.38*self.param.unitres*sectionnum) \
-                + (self.param.unitcap * sectionnum * 0.69 + 0.69 * self.resTg) * self.param.drivecapin
-                
-        self.readLatency = tr
+        # TG
+        capOutput = GP["capTgDrain"] * 3
+        tr = GP["resTg"] * (capOutput + capLoad) + resLoad * capLoad / 2
+        self.readLatency = horowitz(tr, 0, rampInput)["result"]
         self.readLatency *= numRead
+        self.readLatency += self.dff.readLatency
         
-        rampInput = 1e20
         self.writeLatency = horowitz(tr, 0, rampInput)["result"]
         self.writeLatency *= numWrite
-        self.writeLatency += self.dff.readLatency # Use DFF read latency here because no write in the DFF module
+        self.writeLatency += self.dff.readLatency
         
-    def CalculatePower(self, numRead, numWrite, 
+    def CalculatePower(self, numRead, numWrite, numWriteCellPerOperationNeuro,
                        activityRowRead, activityColWrite):
         self.readDynamicEnergy = 0
         self.writeDynamicEnergy = 0
@@ -126,9 +117,9 @@ class SwitchMatrix:
                     
                     writeDynamicEnergy += (capTgGateN + capTgGateP) * tech.vdd * tech.vdd * numOutput;
             """
-            writeDynamicEnergy = (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * numWrite * min(self.param.numWriteCellPerOperationNeuro, self.numOutput*activityColWrite) / 2
-            writeDynamicEnergy += (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * (self.numOutput - min(self.param.numWriteCellPerOperationNeuro, self.numOutput*activityColWrite)/2)
-            writeDynamicEnergy += (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * numWrite * min(self.param.numWriteCellPerOperationNeuro, self.numOutput*activityColWrite) / 2
+            writeDynamicEnergy = (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * numWrite * min(numWriteCellPerOperationNeuro, self.numOutput*activityColWrite) / 2
+            writeDynamicEnergy += (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * (self.numOutput - min(numWriteCellPerOperationNeuro, self.numOutput*activityColWrite)/2)
+            writeDynamicEnergy += (self.gate_params["capTgDrain"] * 3) * self.param.writeVoltage * self.param.writeVoltage * numWrite * min(numWriteCellPerOperationNeuro, self.numOutput*activityColWrite) / 2
             writeDynamicEnergy += (self.gate_params["capTgGateN"] + self.gate_params["capTgGateP"]) * self.tech.vdd * self.tech.vdd * self.numOutput
             self.writeDynamicEnergy += writeDynamicEnergy
             

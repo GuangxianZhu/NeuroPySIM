@@ -2,6 +2,12 @@ from from_neurosim.build import FormulaBindings
 from constant import *
 
 class Param(FormulaBindings.Param):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        self.RRAM_mode = -1
+    
     def __setattr__(self, name, value):
         
         # First call the parent class's __setattr__ method to complete the assignment
@@ -11,6 +17,7 @@ class Param(FormulaBindings.Param):
         if name == 'synapseBit':
             super().__setattr__('numColMuxed', value)
             super().__setattr__('numColPerSynapse', value)
+            super().__setattr__('numCellPerSynapse', value)
             
         # resistanceOn and maxConductance
         if name == "resistanceOn":

@@ -42,10 +42,7 @@ class ShiftAdd:
         
         self.adder.CalculateLatency(self.gate_params["capTgDrain"], 1)
         self.dff.CalculateLatency(1)
-        shiftAddLatency = self.adder.readLatency + self.dff.readLatency
-        
-        self.readLatency = (shiftAddLatency - self.param.readPulseWidth) * (numRead - 1)
-        
+        self.readLatency = self.adder.readLatency + self.dff.readLatency        
         
     def CalculatePower(self, numRead):
         

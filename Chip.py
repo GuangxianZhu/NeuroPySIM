@@ -61,17 +61,21 @@ def create_tiles(input_list, weight_list, args, log_text, param, tech, gate_para
         total_input_length += input_matrix.shape[1]
 
         # accurate mode
-        weight_matrix = load_weight(weight_file, args)
-        # make rand weight matrix old, same as weight matrix
-        # weight_matrix_old = load_weight(weight_file_old, args)
-        weight_matrix_old = np.random.randint(0, 2, weight_matrix.shape)
+        if args.RRAM_mode == RRAM_DIGITAL:
+            weight_matrix = load_weight(weight_file, args, mode='INT')
+            # make rand weight matrix old, same as weight matrix
+            # weight_matrix_old = load_weight(weight_file_old, args)
+            weight_matrix_old = np.random.randint(0, 2, weight_matrix.shape)
+        elif args.RRAM_mode == RRAM_ANALOG:
+            weight_matrix = load_weight(weight_file, args, mode='FLOAT')
+            weight_matrix_old = np.random.rand(weight_matrix.shape[0], weight_matrix.shape[1])
         
         if weight_matrix.shape[0] != input_matrix.shape[0]:
             raise ValueError(f"{weight_file}: w_mat:{weight_matrix.shape[0]} != i_mat:{input_matrix.shape[0]}")
 
         OP += input_matrix.shape[0] * input_matrix.shape[1] * weight_matrix.shape[1]
 
-        if args.MappingMode == 0:
+        if args.MappingMode == 0: # auto-mapping
             stageY, stageX, speedUpY, speedUpX = calc_num_stage(weight_matrix, args.ArrNumY, args.ArrNumX, args.ArrRowSize, args.ArrColSize)
             speedUp.append(speedUpY * speedUpX)
             tile = Tile(stageY, stageX, args.ArrNumY, args.ArrNumX, args.ArrRowSize, args.ArrColSize,
@@ -87,7 +91,8 @@ def create_tiles(input_list, weight_list, args, log_text, param, tech, gate_para
             overall_utilization += tile.utilization
 
             tiles.append(tile)
-        else:
+        
+        else: # manual-mapping
             raise NotImplementedError("MappingMode: {} not implemented".format(args.MappingMode))
 
     TOP = OP / 1e12
@@ -99,7 +104,14 @@ def create_tiles(input_list, weight_list, args, log_text, param, tech, gate_para
 
     return tiles, speedUp, log_text
 
-def load_weight(weightfile, args):
+def load_weight(weightfile, args, mode='INT'):
+    """
+    Load weights from a CSV file. 
+
+    Modes:
+      - 'INT': Convert floats to an integer-based representation (bit-splitting).
+      - 'FLOAT': Load floats directly (no conversion).
+    """
     weight = []
 
     with open(weightfile, 'r') as fileone:
@@ -109,32 +121,48 @@ def load_weight(weightfile, args):
             weightrow = []
 
             for val in line:
-                f = float(val) # -0.14844
+                f = float(val)
 
-                NormalizedMin = 0
-                NormalizedMax = 2 ** args.nBits
-                RealMax = 1
-                RealMin = -1
+                if mode.upper() == 'FLOAT':
+                    # Simply store the floating-point value
+                    weightrow.append(f)
 
-                newdata = ((NormalizedMax - NormalizedMin) // (RealMax - RealMin) * (f - RealMax)) + NormalizedMax # 108.996
-                newdata = floor(newdata+0.5) if newdata >= 0 else ceil(newdata-0.5) # 109
+                elif mode.upper() == 'INT':
+                    # Convert float to integer representation
+                    NormalizedMin = 0
+                    NormalizedMax = 2 ** args.nBits
+                    RealMax = 1
+                    RealMin = -1
 
-                cellrange = 2
-                synapsevector = [0] * args.nBits
-                value = int(newdata)
+                    # Scale float into [0, 2^nBits], then quantize
+                    newdata = ((NormalizedMax - NormalizedMin) // (RealMax - RealMin) 
+                               * (f - RealMax)) + NormalizedMax
+                    newdata = floor(newdata + 0.5) if newdata >= 0 else ceil(newdata - 0.5)
 
-                for z in range(0, args.nBits):
-                    remainder = value % cellrange
-                    value = value // cellrange
-                    synapsevector[args.nBits - 1 - z] = remainder
+                    # Decompose into bits
+                    cellrange = 2
+                    synapsevector = [0] * args.nBits
+                    value = int(newdata)
 
-                for u in range(args.nBits):
-                    cellvalue = synapsevector[u]
-                    weightrow.append(cellvalue)  # debug, test cell value
+                    for z in range(args.nBits):
+                        remainder = value % cellrange
+                        value = value // cellrange
+                        synapsevector[args.nBits - 1 - z] = remainder
+
+                    # Append each bit to the row
+                    for bit in synapsevector:
+                        weightrow.append(bit)
+
+                else:
+                    raise ValueError("Invalid mode. Supported modes: 'INT', 'FLOAT'.")
 
             weight.append(weightrow)
 
-    return np.array(weight, dtype=np.int8)
+    # Return appropriate dtype
+    if mode.upper() == 'FLOAT':
+        return np.array(weight, dtype=np.float32)
+    else:  # 'INT'
+        return np.array(weight, dtype=np.int8)
 
 def load_input(inputfile, args):
     input_matrix = []
@@ -165,6 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--ArrRowSize', type=int, default=128, help='Size of array in Y direction')
     parser.add_argument('--ArrColSize', type=int, default=128, help='Size of array in X direction')
     parser.add_argument('--nBits', type=int, default=8, help='Value quantization bits')
+    parser.add_argument('--RRAM_mode', type=int, default=RRAM_ANALOG, help='digital RRAM or analog RRAM')
     parser.add_argument('--cellBit', type=int, default=1, help='one cell can represent 2^cellBit values')
     parser.add_argument('--MappingMode', type=int, default=0, choices=[0, 1], help='Mapping mode: 0 for auto, 1 for manual')
     parser.add_argument('--levelOutput', type=int, default=32, help='Output level for amplifier')
@@ -184,9 +213,20 @@ if __name__ == "__main__":
     param = Param()
     
     param.memcelltype = RRAM
+    
+    if args.RRAM_mode == RRAM_DIGITAL:
+        param.RRAM_mode = RRAM_DIGITAL # digital rram: store 0:Gmin, 1:Gmax
+        param.synapseBit = args.nBits # INT-N
+    
+    elif args.RRAM_mode == RRAM_ANALOG:
+        param.RRAM_mode = RRAM_ANALOG # analog rram: store conductance value
+        param.synapseBit = 1
+        if args.nBits != 1:
+            print("Warning: analog RRAM only support 1-bit, update nBits to 1")
+            args.nBits = 1
+        
     param.numRowSubArray = args.ArrRowSize
     param.numColSubArray = args.ArrColSize
-    param.synapseBit = args.nBits   # 8: INT8
     param.cellBit = args.cellBit    # 1
     param.technode = args.technode
     param.temp = args.temperature
@@ -229,7 +269,7 @@ if __name__ == "__main__":
     #                 "layer_record_VGG8/weightFC1_.csv"]
     
     log_text = ""
-    tiles, speedUp, log_text = create_tiles(input_list, weight_list, args,log_text, 
+    tiles, speedUp, log_text = create_tiles(input_list, weight_list, args, log_text, 
                                             param, tech, gate_params)
     print("\nUtil for tiles")
     for tile in tiles:
@@ -265,11 +305,11 @@ if __name__ == "__main__":
     
     print(f"Chip ReadLatency (inference 1 sample): {chipReadLatency*1e3:.3f}ms")
     print(f"\tper bit: {chipReadLatency/args.total_input_length*1e3:.7f}ms")
-    print(f"Chip WriteLatency (write weight into crossbar): {chipWriteLatency*1e3:.3f}ms")
+    print(f"Chip WriteLatency (update weight in crossbar): {chipWriteLatency*1e3:.3f}ms")
     print("-"*50)
     
     print(f"Chip read dynamic energy (inference 1 sample): {chipReadDynamicEnergy*1e9:.3f}nJ")
-    print(f"Chip write dynamic energy (write weight into crossbar): {chipWriteDynamicEnergy*1e9:.3f}nJ")
+    print(f"Chip write dynamic energy (update weight in crossbar): {chipWriteDynamicEnergy*1e9:.3f}nJ")
     print("-"*50)
     
     print(f"Time elapsed: {time.time()-start_time:.3f}s")

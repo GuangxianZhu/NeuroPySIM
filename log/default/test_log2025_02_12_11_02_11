@@ -1,0 +1,22 @@
+=================FLAGS==================
+dataset: cifar10
+model: VGG8
+batch_size: 200
+seed: 1
+log_interval: 100
+test_interval: 1
+logdir: /home/guangxian-z/WorkStation/C/NeuroPySIM/log/default
+mode: WAGE
+wl_weight: 8
+wl_activate: 8
+wl_error: 8
+subArray: 128
+RRAM: NoRRAM
+ADCprecision: 5
+onoffratio: 10.0
+vari: 0.0
+t: 0.0
+v: 0.0
+detect: 0
+target: 0.0
+========================================

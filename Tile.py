@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from tqdm import tqdm
 
 from constant import *
 from Array import Array
@@ -64,7 +65,11 @@ class Tile:
         self.usedArea = array_usedArea * self.num_subarray_row * self.num_subarray_col
         self.emptyArea = array_emptyArea * self.num_subarray_row * self.num_subarray_col
         
+    
     def CalculateLatency(self, speedUp:int):
+        
+        maxConductance = self.param.maxConductance
+        minConductance = self.param.minConductance
         
         if self.weight_cpoied==False or self.input_copied==False:
             raise ValueError("cannot cal latency, Weight or input matrix is not copied to the Tile.")
@@ -82,8 +87,47 @@ class Tile:
         
         if self.totalNumWritePulse == -1: raise ValueError("totalNumWritePulse is not calculated.")
         self.array.totalNumWritePulse = self.totalNumWritePulse
-        self.array.CalculateLatency()
-        self.readLatency += self.array.readLatency * self.input_bitlen
+        #########################################
+        # Cycle-accurate latency calculation (SLOW)
+        #########################################
+        for stagei in range(self.stageNum_row):
+            for stagej in range(self.stageNum_col):
+                for i in range(self.num_subarray_row):
+                    for j in range(self.num_subarray_col):
+                        
+                        ############################################
+                        # Slow calculation
+                        ############################################
+                        # crossBarInput = self.input_container[stagei][stagej][i][j]
+                        # crossBarWeight = self.container[stagei][stagej][i][j]
+                        
+                        # for k in tqdm(range(crossBarInput.shape[1])):
+                        #     inputVec = crossBarInput[:, k]
+                        #     columnResistance = self.GetColumnResistance(inputVec, crossBarWeight)
+                        #     self.array.CalculateLatency(columnResistance)
+                        #     self.readLatency += self.array.readLatency
+                        
+                        ############################################
+                        # Vectorized calculation
+                        ############################################
+                        crossBarInput = self.input_container[stagei][stagej][i][j]  # shape: (num_rows, num_k)
+                        crossBarWeight = self.container[stagei][stagej][i][j]         # shape: (num_rows, num_cols)
+                        
+                        # Vectorized calculation: get resistances for all input vectors at once.
+                        # The returned array has shape (num_cols, num_k) where each column corresponds to a given input vector.
+                        columnResistance_all = self.GetColumnResistance_vectorized(crossBarInput, crossBarWeight)
+                        
+                        # If your CalculateLatency can process multiple sets of column resistances at once, you can vectorize further.
+                        # Otherwise, loop over the computed resistances for each input vector.
+                        for colRes in columnResistance_all.T:  # iterate over each input vector's result (shape: (num_cols,))
+                            self.array.CalculateLatency(colRes)
+                            self.readLatency += self.array.readLatency
+        
+        ##############################
+        # Fast estimate
+        ##############################
+        # self.array.CalculateLatency(columnResistance)
+        # self.readLatency += self.array.readLatency * self.input_bitlen
         
         # II. peripheral part
         # skip for now (buffer, relu, etc.)
@@ -273,12 +317,6 @@ class Tile:
                         
                             subarray_weight = self.container[stagei][stagej][arri][arrj]
                             subarray_weight_old = self.container_old[stagei][stagej][arri][arrj]
-                            
-                            # map 0->minG, 1->maxG, (for empty cells)
-                            subarray_weight = np.where(subarray_weight==0, minG, subarray_weight)
-                            subarray_weight = np.where(subarray_weight==1, maxG, subarray_weight)
-                            subarray_weight_old = np.where(subarray_weight_old==0, minG, subarray_weight_old)
-                            subarray_weight_old = np.where(subarray_weight_old==1, maxG, subarray_weight_old)
 
                             delta = subarray_weight - subarray_weight_old
                             abs_delta = np.abs(delta)
@@ -340,7 +378,103 @@ class Tile:
                         else:
                             raise ValueError("SRAM or others are not supported for now.")
         
+    
+    def GetColumnResistance(self, inputVec: np.ndarray, weight: np.ndarray) -> np.ndarray:
+        """
+        Compute the column resistances for an RRAM array with parallel read.
         
+        Parameters:
+            inputVec: 1D NumPy array of binary activations (0 or 1) with length equal to the number of rows.
+            weight:   2D NumPy array (shape: [num_rows, num_cols]) representing the device conductances.
+        
+        Returns:
+            A 1D NumPy array containing the resistance for each column.
+        """
+        numrows, numcols = weight.shape
+        conductance_list = []
+        resistance_list = []
+        
+        for col_id in range(numcols):
+            col_cond = 0.0
+            for row_id in range(numrows):
+                if inputVec[row_id] == 1:
+                    # Compute the intrinsic device resistance (inverse of device conductance)
+                    device_resistance = 1.0 / weight[row_id, col_id]
+                    # Total resistance includes device resistance, row and column wire resistances,
+                    # and the access resistance.
+                    total_wire_res = (
+                        device_resistance +
+                        (col_id + 1) * self.param.wireResistanceRow +
+                        (numrows - row_id) * self.param.wireResistanceCol +
+                        self.array.cell.resCellAccess
+                    )
+                    # Sum the contribution from this activated cell (conductance = 1/total resistance)
+                    col_cond += 1.0 / total_wire_res
+            
+            conductance_list.append(col_cond)
+        
+        # Convert column conductance to resistance (avoid division by zero)
+        for cond in conductance_list:
+            if cond != 0:
+                resistance_list.append(1.0 / cond)
+            else:
+                resistance_list.append(np.inf)
+        
+        return np.array(resistance_list)
+        
+    
+    def GetColumnResistance_vectorized(self, inputMat: np.ndarray, weight: np.ndarray) -> np.ndarray:
+        """
+        Vectorized computation of column resistances for an RRAM array with parallel read.
+        
+        Parameters:
+            inputMat: 2D NumPy array of binary inputs with shape (num_rows, num_k),
+                    where each column is an input vector.
+            weight:   2D NumPy array of device conductances with shape (num_rows, num_cols).
+        
+        Returns:
+            A 2D NumPy array of column resistances with shape (num_cols, num_k).
+            (Each column corresponds to the resistance of each crossbar column for one input vector.)
+        """
+        num_rows, num_cols = weight.shape
+        _, num_k = inputMat.shape
+
+        # Create index arrays for broadcasting
+        rows = np.arange(num_rows).reshape(num_rows, 1)   # shape: (num_rows, 1)
+        cols = np.arange(num_cols).reshape(1, num_cols)     # shape: (1, num_cols)
+
+        # Compute the intrinsic device resistance for each cell
+        device_resistance = 1.0 / weight  # shape: (num_rows, num_cols)
+
+        # Wire resistances:
+        wire_row_offset = (cols + 1) * self.param.wireResistanceRow   # shape: (1, num_cols)
+        wire_col_offset = (num_rows - rows) * self.param.wireResistanceCol  # shape: (num_rows, 1)
+
+        # Total resistance seen by each cell
+        cell_total_res = device_resistance + wire_row_offset + wire_col_offset + self.array.cell.resCellAccess  
+        # shape: (num_rows, num_cols)
+
+        # Expand cell_total_res to handle multiple input vectors:
+        # We'll compute contributions for each input vector (k)
+        # Input mask: for each cell, for each input vector, check if it is activated.
+        input_mask = inputMat[:, np.newaxis, :]  # shape: (num_rows, 1, num_k)
+
+        # Compute contribution (conductance) for each cell for each input vector:
+        # If activated (==1), contribution is 1 / cell_total_res; else 0.
+        # We expand cell_total_res to shape (num_rows, num_cols, 1)
+        contributions = np.where(input_mask == 1, 1.0 / cell_total_res[:, :, np.newaxis], 0.0)
+        # contributions shape: (num_rows, num_cols, num_k)
+
+        # Sum contributions over rows to get the total column conductance for each input vector.
+        column_conductance = np.sum(contributions, axis=0)  # shape: (num_cols, num_k)
+
+        # Convert conductance to resistance. Avoid division by zero:
+        # column_resistance = np.where(column_conductance != 0, 1.0 / column_conductance, np.inf)
+        column_resistance = np.full(column_conductance.shape, np.inf)
+        np.divide(1.0, column_conductance, out=column_resistance, where=column_conductance!=0)
+
+        return column_resistance  # shape: (num_cols, num_k)
+
 
     def copy_weight(self, matrix):
         self.container = np.zeros((self.stageNum_row, self.stageNum_col, 
@@ -350,15 +484,6 @@ class Tile:
         print("copying weight matrix to the Tile...")
         total_capacity_rows = self.stageNum_row * self.num_subarray_row * self.subarray_row_size
         total_capacity_cols = self.stageNum_col * self.num_subarray_col * self.subarray_col_size
-        
-        maxConductance = self.param.maxConductance
-        minConductance = self.param.minConductance
-        if self.param.memcelltype == RRAM: # RRAM, analog value, map 0->minConductance, 1->maxConductance
-            # linear mapping
-            matrix = (matrix+1)/2*(maxConductance-minConductance)+minConductance
-            # check if any value is 0
-            if np.count_nonzero(matrix==0):
-                raise ValueError("0 conductance value is not allowed in RRAM.")
 
         if matrix.shape[0] > total_capacity_rows or matrix.shape[1] > total_capacity_cols:
             raise ValueError("Matrix size exceeds the capacity of a Tile.")
@@ -385,6 +510,11 @@ class Tile:
         self.utilization = (row_limit * col_limit) / \
                             (self.stageNum_row * self.num_subarray_row * self.subarray_row_size * self.stageNum_col * self.num_subarray_col * self.subarray_col_size)
 
+        # linear mapping weight to conductance
+        maxConductance = self.param.maxConductance
+        minConductance = self.param.minConductance
+        self.container = (self.container+1)/2*(maxConductance-minConductance)+minConductance
+        
         self.weight_cpoied = True
 
     def copy_weight_old(self, matrix):
@@ -429,6 +559,10 @@ class Tile:
         self.utilization = (row_limit * col_limit) / \
                             (self.stageNum_row * self.num_subarray_row * self.subarray_row_size * self.stageNum_col * self.num_subarray_col * self.subarray_col_size)
 
+        maxConductance = self.param.maxConductance
+        minConductance = self.param.minConductance
+        self.container_old = (self.container_old+1)/2*(maxConductance-minConductance)+minConductance
+        
         self.weight_cpoied = True
 
     def copy_input(self, input_matrix):
